@@ -12,13 +12,15 @@
 
   var DEFAULTS = {
     locationPrefix: 'LOC',
-    locationPattern: '^[0-9]{1,2}\\.[0-9]{2}$',
+    locationPattern: '^[A-Z][0-9]{2}$',          // één letter + twee cijfers, bv. A03
     allowBareLocation: true,
     barcodeUitgenomen: 'CMDUIT',
     barcodeVerzonden: 'CMDVERZ',
+    barcodeKlaar: 'CMDKLAAR',
     barcodeAnnuleren: 'CMDESC',
     textUitgenomen: 'Uitgenomen',
-    textVerzonden: 'Verzonden'
+    textVerzonden: 'Verzonden',
+    textKlaar: 'Klaar'
   };
 
   function withDefaults(cfg) {
@@ -62,8 +64,8 @@
    * Eén scan (of getypte regel) ontleden.
    * Resultaat is één van:
    *   { type: 'sscc',     sscc: '18 cijfers' }
-   *   { type: 'location', location: '3.12' }
-   *   { type: 'command',  command: 'UITGENOMEN' | 'VERZONDEN' | 'ANNULEREN' }
+   *   { type: 'location', location: 'A03' }
+   *   { type: 'command',  command: 'UITGENOMEN' | 'VERZONDEN' | 'KLAAR' | 'ANNULEREN' }
    *   { type: 'error',    code, message, detail }
    */
   function parseScan(raw, cfg) {
@@ -76,6 +78,7 @@
     // 1. Commando-barcodes (reserve voor de functietoetsen)
     if (c.barcodeUitgenomen && upper === String(c.barcodeUitgenomen).toUpperCase()) return { type: 'command', command: 'UITGENOMEN' };
     if (c.barcodeVerzonden && upper === String(c.barcodeVerzonden).toUpperCase()) return { type: 'command', command: 'VERZONDEN' };
+    if (c.barcodeKlaar && upper === String(c.barcodeKlaar).toUpperCase()) return { type: 'command', command: 'KLAAR' };
     if (c.barcodeAnnuleren && upper === String(c.barcodeAnnuleren).toUpperCase()) return { type: 'command', command: 'ANNULEREN' };
 
     var pattern = new RegExp(c.locationPattern);
@@ -118,7 +121,7 @@
    * Beslissen wat er gebeurt, gegeven de open pallet (SSCC of null) en een
    * ontlede scan. Resultaat is één van:
    *   { do: 'open',   sscc }
-   *   { do: 'write',  sscc, target }      target = locatie, "Uitgenomen" of "Verzonden"
+   *   { do: 'write',  sscc, target }      target = locatie, "Uitgenomen", "Verzonden" of "Klaar"
    *   { do: 'cancel', sscc }
    *   { do: 'ignore' }                    niets doen (bv. dezelfde pallet opnieuw gescand)
    *   { do: 'error',  message, detail }
@@ -142,6 +145,7 @@
       if (!openSscc) return { do: 'error', message: 'Eerst pallet scannen', detail: 'Er staat geen pallet open.' };
       if (parsed.command === 'UITGENOMEN') return { do: 'write', sscc: openSscc, target: c.textUitgenomen };
       if (parsed.command === 'VERZONDEN') return { do: 'write', sscc: openSscc, target: c.textVerzonden };
+      if (parsed.command === 'KLAAR') return { do: 'write', sscc: openSscc, target: c.textKlaar };
     }
     return { do: 'error', message: 'Onbekende invoer', detail: '' };
   }
