@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Palletscan</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+
+<script>
+/* ======================================================================
+   CONFIGURATIE – alle instelbare waarden staan hier samen.
+   ====================================================================== */
+var CONFIG = {
+  APP_VERSION: "1.0.0",
+
+  /* --- Verzenden ---------------------------------------------------- */
+  // Web-app-adres van het Apps Script (eindigt op /exec).
+  ENDPOINT_URL: "https://script.google.com/macros/s/AKfycbz4GmwDgFMJ23XoHkLl7LoZ_ytQNwCzw9nmEo2tNRESHK1X-YdbGTxOS1sIMpr3Jw/exec",
+  // Gedeelde sleutel, moet gelijk zijn aan SHARED_KEY in Code.gs.
+  // LEEG LATEN als deze pagina in een publieke GitHub-repo staat: vul de
+  // sleutel dan per toestel in via het tandwiel (⚙). Hij wordt dan alleen
+  // op het toestel bewaard en staat nergens online.
+  SHARED_KEY: "",
+
+  /* --- Locatie ------------------------------------------------------ */
+  // Prefix op de barcode van het rek. Wordt verwijderd vóór het wegschrijven.
+  LOCATION_PREFIX: "LOC",
+  // Hoe een geldige palletplaats eruitziet (na het verwijderen van de prefix).
+  // Standaard X.XX of XX.XX, bv. 3.12 of 12.05.
+  LOCATION_PATTERN: "^[0-9]{1,2}\\.[0-9]{2}$",
+  // true: een getypte locatie zonder prefix (bv. "3.12" + Enter) is toegestaan
+  // zolang ze op het patroon past. false: de prefix is altijd verplicht.
+  ALLOW_TYPED_LOCATION_WITHOUT_PREFIX: true,
+
+  /* --- Toetsen ------------------------------------------------------ */
+  // Elke waarde wordt vergeleken met key, code en keyCode van de toets.
+  // Wat een toets op dit toestel doorstuurt, zie je in ⚙ > Toetstest.
+  // Meerdere toetsen per actie mag, bv. ["F1", "F5"]. Gebruik geen cijfers
+  // of letters: die zijn nodig om te typen.
+  KEYS_UITGENOMEN: ["F1"],
+  KEYS_VERZONDEN: ["F2"],
+  KEYS_ANNULEREN: ["Escape"],
+
+  /* --- Commando-barcodes (reserve als de functietoetsen niet werken) -- */
+  // Druk deze af en kleef ze op de heftruck. Leeg ("") = uitgeschakeld.
+  BARCODE_UITGENOMEN: "CMDUIT",
+  BARCODE_VERZONDEN: "CMDVERZ",
+  BARCODE_ANNULEREN: "CMDESC",
+
+  /* --- Tekst in kolom C ---------------------------------------------- */
+  TEXT_UITGENOMEN: "Uitgenomen",
+  TEXT_VERZONDEN: "Verzonden",
+
+  /* --- Gedrag --------------------------------------------------------- */
+  DUPLICATE_SCAN_MS: 1500,   // dezelfde barcode binnen deze tijd = dubbele lezing, genegeerd
+  BATCH_SIZE: 20,            // max. aantal scans per verzending
+  SEND_TIMEOUT_MS: 20000,    // na deze tijd geldt een verzending als mislukt
+  RETRY_MIN_MS: 2000,        // eerste wachttijd na een mislukte verzending
+  RETRY_MAX_MS: 30000,       // langste wachttijd tussen twee pogingen
+  SOUND: true,
+  SOUND_VOLUME: 0.8,         // 0 tot 1
+  VIBRATE: true
+};
+</script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: Roboto, "Segoe UI", system-ui, sans-serif; font-weight: 700;
+    background: #000; color: #fff;
+    display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden;
+    -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+
+  /* Bovenbalk: toestand + wachtrij */
+  #top { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; background: #1a1a1a; }
+  #state { flex: 1 1 auto; min-width: 0; font-size: clamp(14px, 4.4vw, 30px); font-weight: 900; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #queue { flex: 0 0 auto; font-size: clamp(17px, 5.6vw, 34px); font-weight: 900; padding: 1px 10px; border-radius: 6px; background: #0a8f2e; color: #fff; white-space: nowrap; }
+  #queue.pending { background: #ff9800; color: #000; }
+  #net { flex: 0 0 auto; font-size: clamp(12px, 3.8vw, 20px); font-weight: 500; padding: 2px 8px; background: #1a1a1a; color: #bdbdbd; border-bottom: 2px solid #444; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #net.bad { background: #ff9800; color: #000; font-weight: 700; }
+
+  /* Hoofdvlak */
+  #main { flex: 1 1 auto; min-height: 0; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 4px 6px; overflow: hidden; }
+  body.open #main { background: #ffd500; color: #000; }
+  #prompt { font-size: min(13vw, 13vh, 110px); font-weight: 900; line-height: 1.05; }
+  #promptsub { font-size: clamp(14px, 4.6vw, 30px); font-weight: 500; margin-top: 6px; color: #bdbdbd; }
+  #sscc { font-size: min(13.4vw, 15vh, 120px); font-weight: 900; line-height: 1.02; font-variant-numeric: tabular-nums; white-space: pre; }
+  #hint { font-size: clamp(15px, 5vw, 32px); font-weight: 900; margin-top: 4px; }
+  body.open #prompt, body.open #promptsub { display: none; }
+  body:not(.open) #sscc, body:not(.open) #hint { display: none; }
+
+  /* Bevestiging / fout over het hoofdvlak */
+  #flash { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px; pointer-events: none; }
+  #flash.ok { display: flex; background: #0a8f2e; color: #fff; }
+  #flash.err { display: flex; background: #d00000; color: #fff; }
+  #flash.info { display: flex; background: #424242; color: #fff; }
+  #flashicon { font-size: min(15vw, 14vh, 120px); line-height: 1; font-weight: 900; }
+  #flashtitle { font-size: min(9.5vw, 10vh, 84px); font-weight: 900; line-height: 1.08; }
+  #flashsub { font-size: clamp(15px, 5vw, 34px); font-weight: 700; margin-top: 6px; line-height: 1.15; overflow-wrap: anywhere; }
+
+  /* Invoerregel */
+  #f { flex: 0 0 auto; display: flex; background: #000; border-top: 2px solid #444; }
+  #in { flex: 1 1 auto; min-width: 0; font: inherit; font-size: clamp(18px, 6vw, 34px); padding: 3px 8px; background: #000; color: #fff; border: 0; outline: 0; caret-color: #ffd500; border-radius: 0; }
+  #in::placeholder { color: #8a8a8a; font-weight: 500; }
+  #kbd { flex: 0 0 auto; font-size: clamp(18px, 6vw, 34px); padding: 0 12px; background: #333; }
+  #kbd.on { background: #ffd500; color: #000; }
+
+  /* Actieknoppen */
+  #actions { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 4px; background: #000; }
+  #actions button { min-height: clamp(52px, 16vw, 84px); border-radius: 8px; background: #fff; color: #000; font-size: clamp(14px, 4.5vw, 28px); font-weight: 900; line-height: 1.05; padding: 2px; }
+  #actions button .k { display: block; font-size: clamp(20px, 6.6vw, 40px); }
+  #actions button:active { background: #ffd500; }
+  #actions #bCancel { background: #bdbdbd; }
+  body:not(.open) #actions button { background: #333; color: #8a8a8a; }
+
+  /* Laatste scans */
+  #hist { flex: 0 0 auto; list-style: none; background: #1a1a1a; border-top: 2px solid #444; padding: 2px 8px; font-size: clamp(14px, 4.5vw, 24px); font-weight: 700; font-variant-numeric: tabular-nums; }
+  #hist li { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; line-height: 1.32; }
+  #hist .t { color: #bdbdbd; font-weight: 500; }
+  #hist .s { flex: 0 0 auto; }
+  #hist .s .head { display: none; }
+  #hist .l { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  #hist .st { flex: 0 0 auto; font-weight: 900; }
+  #hist .st .w { display: none; }
+  #hist .st.sent { color: #4cd964; }
+  #hist .st.wait { color: #ffb74d; }
+  #hist .st.rej { color: #ff6b6b; }
+  #hist li.empty { color: #8a8a8a; font-weight: 500; }
+
+  /* Voet */
+  #foot { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; background: #1a1a1a; color: #bdbdbd; font-size: clamp(12px, 3.6vw, 18px); font-weight: 500; }
+  #gear { font-size: clamp(22px, 7vw, 34px); padding: 0 8px; background: transparent; color: #fff; line-height: 1.2; }
+  #rej { color: #ff6b6b; font-weight: 900; }
+
+  /* Brede schermen (pc, liggend toestel): scans rechts naast het hoofdvlak */
+  @media (min-width: 600px) { #hist .s .head, #hist .st .w { display: inline; } #hist .s .dots { display: none; } }
+  @media (orientation: landscape) and (max-height: 420px) {
+    body { display: grid; grid-template-columns: minmax(0, 54fr) minmax(0, 46fr); grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; }
+    #top, #net { grid-column: 1 / -1; }
+    #main { grid-column: 1; grid-row: 3 / 7; }
+    #f, #actions, #hist, #foot { grid-column: 2; }
+    #f { border-top: 0; }
+    #state, #queue { font-size: clamp(16px, 3.4vw, 26px); }
+    #net { font-size: clamp(12px, 2.4vw, 18px); }
+    #prompt { font-size: min(8vw, 24vh); }
+    #promptsub { font-size: clamp(12px, 2.6vw, 20px); }
+    #sscc { font-size: min(7.2vw, 24vh); }
+    #hint { font-size: clamp(14px, 3vw, 24px); }
+    #flashtitle { font-size: min(5.6vw, 17vh); }
+    #flashicon { font-size: min(8vw, 18vh); }
+    #flashsub { font-size: clamp(13px, 2.8vw, 22px); }
+    #in, #kbd { font-size: clamp(16px, 3.4vw, 24px); }
+    #actions button { min-height: 48px; font-size: clamp(11px, 2.2vw, 18px); }
+    #actions button .k { font-size: clamp(16px, 3.4vw, 26px); }
+    #hist { font-size: clamp(12px, 2.5vw, 18px); overflow: hidden; border-top: 0; }
+    #foot { font-size: clamp(11px, 2.2vw, 16px); }
+    #gear { font-size: clamp(18px, 4vw, 28px); }
+  }
+
+  /* Instellingen */
+  #dlg { position: fixed; inset: 0; background: #fff; color: #000; overflow: auto; padding: 10px 12px 24px; font-weight: 500; font-size: 16px; -webkit-user-select: text; user-select: text; z-index: 10; }
+  #dlg[hidden] { display: none; }
+  #dlg h2 { font-size: 22px; font-weight: 900; margin-bottom: 8px; }
+  #dlg h3 { font-size: 16px; font-weight: 900; margin: 16px 0 4px; }
+  #dlg label { display: block; font-weight: 700; margin-top: 10px; }
+  #dlg input[type=text], #dlg textarea { width: 100%; font: inherit; font-size: 18px; padding: 8px; border: 2px solid #000; border-radius: 6px; background: #fff; color: #000; }
+  #dlg textarea { height: 110px; font-size: 13px; font-family: monospace; white-space: pre; }
+  #dlg small { display: block; color: #444; margin-top: 2px; }
+  #dlg .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  #dlg .row button { flex: 1 1 120px; min-height: 48px; border-radius: 8px; background: #000; color: #fff; font-weight: 900; font-size: 17px; padding: 4px 8px; }
+  #dlg .row button.sec { background: #e0e0e0; color: #000; }
+  #dlg .row button[hidden] { display: none; }
+  #dlgmsg { margin-top: 10px; font-weight: 900; min-height: 1.3em; }
+  #dlgmsg.ok { color: #0a7a26; } #dlgmsg.bad { color: #c00000; }
+  #keytest { font-family: monospace; font-size: 15px; background: #eee; padding: 6px 8px; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div id="top">
+  <div id="state">WACHT OP PALLET</div>
+  <div id="queue" title="Aantal scans dat nog wacht op verzending">WACHTRIJ 0</div>
+</div>
+<div id="net">…</div>
+
+<div id="main">
+  <div id="prompt">SCAN<br>PALLET</div>
+  <div id="promptsub">SSCC-barcode op het palletlabel</div>
+  <div id="sscc"></div>
+  <div id="hint">Scan nu de LOCATIE</div>
+  <div id="flash"><div id="flashicon"></div><div id="flashtitle"></div><div id="flashsub"></div></div>
+</div>
+
+<form id="f" autocomplete="off">
+  <input id="in" type="text" inputmode="none" enterkeyhint="done" maxlength="80"
+         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+         placeholder="scan, of typ + Enter" aria-label="Scaninvoer">
+  <button type="button" id="kbd" aria-label="Schermtoetsenbord aan/uit">⌨</button>
+</form>
+
+<div id="actions">
+  <button type="button" id="bUit"><span class="k" id="kUit">F1</span> Uitgenomen</button>
+  <button type="button" id="bVerz"><span class="k" id="kVerz">F2</span> Verzonden</button>
+  <button type="button" id="bCancel"><span class="k" id="kCancel">Esc</span> Annuleer</button>
+</div>
+
+<ol id="hist" aria-label="Laatste 5 scans"></ol>
+
+<div id="foot">
+  <span id="footinfo"></span>
+  <span id="rej"></span>
+  <button type="button" id="gear" aria-label="Instellingen">⚙</button>
+</div>
+
+<div id="dlg" hidden>
+  <h2>Instellingen van dit toestel</h2>
+  <label for="sDev">Toestelnaam</label>
+  <input type="text" id="sDev" maxlength="20" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <small>Komt in kolom E van de Sheet, bv. HEFTRUCK1.</small>
+
+  <label for="sKey">Sleutel</label>
+  <input type="text" id="sKey" maxlength="100" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <small id="sKeyHelp"></small>
+
+  <label for="sUrl">Adres van het Apps Script</label>
+  <input type="text" id="sUrl" maxlength="300" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <small id="sUrlHelp"></small>
+
+  <div class="row">
+    <button type="button" id="sSave">Bewaren</button>
+    <button type="button" id="sTest" class="sec">Test verbinding</button>
+    <button type="button" id="sClose" class="sec">Sluiten</button>
+  </div>
+  <div id="dlgmsg"></div>
+
+  <h3>Toetstest</h3>
+  <div id="keytest">Druk op een toets (bv. F1)…</div>
+  <small>Zet de waarde achter <b>key</b> of <b>code</b> in het configuratieblok bovenaan index.html.</small>
+
+  <h3>Nog niet verzonden of geweigerd</h3>
+  <textarea id="sDump" readonly></textarea>
+  <div class="row"><button type="button" id="sRetry" class="sec" hidden>Geweigerde scans opnieuw proberen</button></div>
+  <small>Reserve: deze regels kun je kopiëren als verzenden blijvend mislukt. Kolommen: tijdstip, SSCC, plaats, ScanID, toestel.</small>
+</div>
+
+<script src="scanlogic.js"></script>
+<script>
+(function () {
+  'use strict';
+  var L = window.ScanLogic;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var LOGIC_CFG = {
+    locationPrefix: CONFIG.LOCATION_PREFIX,
+    locationPattern: CONFIG.LOCATION_PATTERN,
+    allowBareLocation: CONFIG.ALLOW_TYPED_LOCATION_WITHOUT_PREFIX,
+    barcodeUitgenomen: CONFIG.BARCODE_UITGENOMEN,
+    barcodeVerzonden: CONFIG.BARCODE_VERZONDEN,
+    barcodeAnnuleren: CONFIG.BARCODE_ANNULEREN,
+    textUitgenomen: CONFIG.TEXT_UITGENOMEN,
+    textVerzonden: CONFIG.TEXT_VERZONDEN
+  };
+
+  /* ------------------------------------------------------------------
+     Instellingen van dit toestel (naam, sleutel, adres): localStorage.
+     ------------------------------------------------------------------ */
+  var SET_KEY = 'palletscan.settings';
+  var settings = {};
+  try { settings = JSON.parse(localStorage.getItem(SET_KEY) || '{}'); } catch (e) { settings = {}; }
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) settings = {};
+  function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); return true; } catch (e) { return false; } }
+  function cleanDev(s) { return String(s || '').replace(/[^A-Za-z0-9 ._-]/g, '').trim().slice(0, 20); }
+
+  function randomChars(n) {
+    var abc = 'abcdefghijklmnopqrstuvwxyz0123456789', out = '', i;
+    var buf = new Uint8Array(n);
+    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(buf);
+    else for (i = 0; i < n; i++) buf[i] = Math.floor(Math.random() * 256);
+    for (i = 0; i < n; i++) out += abc[buf[i] % abc.length];
+    return out;
+  }
+
+  (function initSettings() {
+    var changed = false;
+    try {
+      var p = new URLSearchParams(location.search);
+      if (cleanDev(p.get('toestel'))) { settings.dev = cleanDev(p.get('toestel')); changed = true; }
+    } catch (e) {}
+    if (!settings.dev) { settings.dev = 'T-' + randomChars(4).toUpperCase(); changed = true; }
+    if (changed) saveSettings();
+  })();
+
+  function endpoint() { return (settings.url || CONFIG.ENDPOINT_URL || '').trim(); }
+  function sharedKey() { return (settings.key || CONFIG.SHARED_KEY || '').trim(); }
+
+  /* ------------------------------------------------------------------
+     Wachtrij op het toestel: IndexedDB.
+     - Eén record per scan. Toevoegen en verwijderen van losse records kan
+       nooit een andere scan overschrijven, ook niet als de app twee keer
+       open staat (Chrome-tabblad + app op het startscherm).
+     - Elke schrijfbewerking wacht tot ze echt op schijf staat
+       (durability "strict"). Pas daarna komt de groene bevestiging.
+     - "seq" is een oplopend nummer: dat bepaalt de verzendvolgorde.
+     ------------------------------------------------------------------ */
+  var dbPromise = null;
+  function openDb() {
+    if (dbPromise) return dbPromise;
+    var p = new Promise(function (resolve, reject) {
+      var req;
+      try { req = indexedDB.open('palletscan', 1); } catch (e) { reject(e); return; }
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        db.createObjectStore('queue', { keyPath: 'seq', autoIncrement: true });    // wacht op verzending
+        db.createObjectStore('rejected', { keyPath: 'id' });                        // door de server geweigerd
+        db.createObjectStore('history', { keyPath: 'seq', autoIncrement: true });  // laatste scans, voor het scherm
+      };
+      req.onsuccess = function () {
+        var db = req.result;
+        db.onversionchange = function () { db.close(); dbPromise = null; };
+        db.onclose = function () { dbPromise = null; };
+        resolve(db);
+      };
+      req.onerror = function () { reject(req.error || new Error('IndexedDB niet beschikbaar')); };
+      req.onblocked = function () { reject(new Error('IndexedDB geblokkeerd')); };
+    });
+    dbPromise = p;
+    p.catch(function () { if (dbPromise === p) dbPromise = null; });
+    return p;
+  }
+
+  // Voert "work" uit in één transactie; de belofte is pas vervuld als de transactie op schijf staat.
+  function tx(stores, mode, work) {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var t, result;
+        try {
+          try { t = db.transaction(stores, mode, { durability: 'strict' }); }
+          catch (e) { t = db.transaction(stores, mode); }
+          t.oncomplete = function () { resolve(result); };
+          t.onerror = function () { reject(t.error || new Error('opslagfout')); };
+          t.onabort = function () { reject(t.error || new Error('opslag afgebroken')); };
+          result = work(t);
+        } catch (e) { try { if (t) t.abort(); } catch (e2) {} reject(e); }
+      });
+    });
+  }
+
+  function readAll() {
+    return tx(['queue', 'rejected', 'history'], 'readonly', function (t) {
+      var out = { queue: [], rejected: [], history: [] };
+      t.objectStore('queue').getAll().onsuccess = function (e) { out.queue = e.target.result || []; };      // oplopend op seq
+      t.objectStore('rejected').getAll().onsuccess = function (e) { out.rejected = e.target.result || []; };
+      t.objectStore('history').openCursor(null, 'prev').onsuccess = function (e) {                          // nieuwste eerst
+        var c = e.target.result;
+        if (c && out.history.length < 5) { out.history.push(c.value); c.continue(); }
+      };
+      return out;
+    });
+  }
+
+  function addScan(rec) {
+    return tx(['queue', 'history'], 'readwrite', function (t) {
+      t.objectStore('queue').add(rec);
+      var h = t.objectStore('history');
+      h.add(rec).onsuccess = function (e) {
+        var last = e.target.result;
+        if (last > 40) h.delete(IDBKeyRange.upperBound(last - 20)); // oude regels opruimen
+      };
+    });
+  }
+
+  // Na een geslaagde verzending: bevestigde scans uit de wachtrij, geweigerde apart zetten.
+  function settle(doneSeqs, rejectedRecs) {
+    return tx(['queue', 'rejected'], 'readwrite', function (t) {
+      var q = t.objectStore('queue'), r = t.objectStore('rejected');
+      doneSeqs.forEach(function (seq) { q.delete(seq); });
+      rejectedRecs.forEach(function (rec) { q.delete(rec.seq); r.put(rec); });
+    });
+  }
+
+  function requeueRejected() {
+    return tx(['queue', 'rejected'], 'readwrite', function (t) {
+      var q = t.objectStore('queue'), r = t.objectStore('rejected');
+      r.getAll().onsuccess = function (e) {
+        (e.target.result || []).forEach(function (x) { q.add({ id: x.id, ts: x.ts, sscc: x.sscc, loc: x.loc, dev: x.dev }); });
+        r.clear();
+      };
+    });
+  }
+
+  // Wat het scherm toont: een kopie van de opslag, ververst na elke wijziging.
+  var snap = { queue: [], rejected: [], history: [] };
+  var storageOk = true;
+  function refresh() {
+    return readAll().then(function (s) { snap = s; storageOk = true; render(); },
+                          function () { storageOk = false; render(); });
+  }
+
+  // Een tweede venster van de app op hetzelfde toestel verwittigen.
+  var channel = null;
+  try { if ('BroadcastChannel' in window) { channel = new BroadcastChannel('palletscan'); channel.onmessage = function () { refresh(); }; } } catch (e) {}
+  function announce() { try { if (channel) channel.postMessage('gewijzigd'); } catch (e) {} }
+
+  /* ------------------------------------------------------------------
+     Toestand en scherm
+     ------------------------------------------------------------------ */
+  var openSscc = null;            // de pallet die open staat, of null
+  var dlgOpen = false;
+  var inp = $('in');
+
+  function timeText(ts) {
+    try { return new Date(ts).toLocaleTimeString('nl-BE', { timeZone: 'Europe/Brussels', hour12: false }); }
+    catch (e) { return new Date(ts).toTimeString().slice(0, 8); }
+  }
+  function dateTimeText(ts) {
+    try { return new Date(ts).toLocaleString('nl-BE', { timeZone: 'Europe/Brussels', hour12: false }); }
+    catch (e) { return new Date(ts).toString(); }
+  }
+  function keyLabel(list, fallback) {
+    var k = (list && list[0]) || fallback;
+    return k === 'Escape' ? 'Esc' : String(k);
+  }
+  function groupSscc(s) { // 18 cijfers op twee regels, per drie gegroepeerd
+    var a = s.slice(0, 9), b = s.slice(9);
+    var g = function (x) { return x.replace(/(\d{3})(?=\d)/g, '$1 '); };
+    return g(a) + '\n' + g(b);
+  }
+
+  function render() {
+    document.body.classList.toggle('open', !!openSscc);
+    $('state').textContent = openSscc ? 'PALLET OPEN' : 'WACHT OP PALLET';
+    $('sscc').textContent = openSscc ? groupSscc(openSscc) : '';
+
+    var n = snap.queue.length;
+    $('queue').textContent = 'WACHTRIJ ' + n;
+    $('queue').classList.toggle('pending', n > 0);
+
+    var waiting = {}, rej = {};
+    snap.queue.forEach(function (r) { waiting[r.id] = true; });
+    snap.rejected.forEach(function (r) { rej[r.id] = true; });
+
+    var list = $('hist');
+    list.textContent = '';
+    if (!snap.history.length) {
+      var e = document.createElement('li'); e.className = 'empty'; e.textContent = 'Nog geen scans'; list.appendChild(e);
+    }
+    snap.history.forEach(function (r) {
+      var li = document.createElement('li');
+      var t = document.createElement('span'); t.className = 't'; t.textContent = timeText(r.ts).slice(0, 5);
+      var s = document.createElement('span'); s.className = 's';
+      var head = document.createElement('span'); head.className = 'head'; head.textContent = r.sscc.slice(0, 12);
+      var dots = document.createElement('span'); dots.className = 'dots'; dots.textContent = '…';
+      s.appendChild(dots); s.appendChild(head); s.appendChild(document.createTextNode(r.sscc.slice(-6)));
+      var l = document.createElement('span'); l.className = 'l'; l.textContent = r.loc;
+      var st = document.createElement('span');
+      if (rej[r.id]) { st.className = 'st rej'; st.textContent = '✖ geweigerd'; }
+      else if (waiting[r.id]) { st.className = 'st wait'; st.textContent = '⏳ wacht'; }
+      else { // smal scherm: alleen het groene vinkje; breed scherm: met het woord erbij
+        st.className = 'st sent'; st.textContent = '✔';
+        var w = document.createElement('span'); w.className = 'w'; w.textContent = ' verzonden'; st.appendChild(w);
+      }
+      li.appendChild(t); li.appendChild(s); li.appendChild(l); li.appendChild(st);
+      list.appendChild(li);
+    });
+
+    $('footinfo').textContent = settings.dev + ' · v' + CONFIG.APP_VERSION;
+    $('rej').textContent = snap.rejected.length ? '✖ ' + snap.rejected.length + ' geweigerd' : '';
+    renderNet();
+  }
+
+  var flashTimer = null;
+  function flash(kind, title, sub, ms) {
+    clearTimeout(flashTimer);
+    $('flash').className = kind;
+    $('flashicon').textContent = kind === 'ok' ? '✔' : kind === 'err' ? '✖' : '';
+    $('flashtitle').textContent = title || '';
+    $('flashsub').textContent = sub || '';
+    if (ms) flashTimer = setTimeout(hideFlash, ms);
+  }
+  function hideFlash() { clearTimeout(flashTimer); $('flash').className = ''; }
+
+  /* ------------------------------------------------------------------
+     Geluid en trillen
+     ------------------------------------------------------------------ */
+  var actx = null;
+  function unlockAudio() {
+    if (!CONFIG.SOUND) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === 'suspended') actx.resume();
+    } catch (e) {}
+  }
+  function tone(freq, start, dur, type, vol) {
+    var o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + start;
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.setValueAtTime(vol, t0 + dur * 0.7);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  function signal(kind) {
+    if (CONFIG.SOUND) {
+      try {
+        unlockAudio();
+        var v = Math.max(0, Math.min(1, CONFIG.SOUND_VOLUME));
+        if (kind === 'ok') tone(1760, 0, 0.18, 'sine', v);                              // gelukt: één korte hoge toon
+        else if (kind === 'open') tone(1175, 0, 0.06, 'sine', v * 0.6);                  // pallet open: tikje
+        else { tone(392, 0, 0.25, 'square', v * 0.7); tone(294, 0.3, 0.45, 'square', v * 0.7); } // fout: twee lage tonen
+      } catch (e) {}
+    }
+    if (CONFIG.VIBRATE && navigator.vibrate) {
+      try { navigator.vibrate(kind === 'err' ? [300, 100, 300] : kind === 'ok' ? 80 : 30); } catch (e) {}
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     Scanflow
+     ------------------------------------------------------------------ */
+  // Terwijl een scan wordt weggeschreven, wacht de volgende invoer even (enkele milliseconden).
+  var busy = false, waitingActions = [];
+  function whenIdle(fn) { if (busy) waitingActions.push(fn); else fn(); }
+  function release() { busy = false; while (!busy && waitingActions.length) waitingActions.shift()(); }
+
+  // Vlak na het wegschrijven komt soms een tweede lezing van hetzelfde rek-etiket,
+  // of een tweede druk op F1/F2. Dat is geen fout en wordt genegeerd.
+  var lastWriteRaw = '', lastWriteAt = 0;
+  function justWritten() { return Date.now() - lastWriteAt < CONFIG.DUPLICATE_SCAN_MS; }
+
+  function handleInput(raw) {
+    if (dlgOpen) return;
+    whenIdle(function () {
+      var cleaned = L.clean(raw);
+      if (!cleaned) return;
+      if (lastWriteRaw && cleaned === lastWriteRaw && justWritten()) return;
+      lastWriteRaw = '';
+      apply(L.decide(openSscc, L.parseScan(raw, LOGIC_CFG), LOGIC_CFG), cleaned);
+    });
+  }
+  function command(name) {
+    if (dlgOpen) return;
+    whenIdle(function () {
+      if (!openSscc && name !== 'ANNULEREN' && justWritten()) return;
+      lastWriteRaw = '';
+      apply(L.decide(openSscc, { type: 'command', command: name }, LOGIC_CFG), '');
+    });
+  }
+
+  function apply(d, cleaned) {
+    if (d.do === 'open') {
+      openSscc = d.sscc; hideFlash(); render(); signal('open');
+    } else if (d.do === 'write') {
+      commit(d.sscc, d.target, cleaned);
+    } else if (d.do === 'cancel') {
+      openSscc = null; render(); signal('open');
+      flash('info', 'Geannuleerd', 'Niets weggeschreven', 1500);
+    } else if (d.do === 'error') {
+      render(); signal('err');
+      flash('err', d.message, d.detail); // blijft staan tot de volgende toets of scan
+    }
+    // d.do === 'ignore': niets doen
+  }
+
+  function newId(ts) { return ts.toString(36) + '-' + randomChars(8); }
+
+  function commit(sscc, target, cleaned) {
+    var ts = Date.now(); // moment van de scan op het toestel
+    var rec = { id: newId(ts), ts: ts, sscc: String(sscc), loc: String(target), dev: settings.dev };
+    busy = true;
+    // 1. Eerst bewaren op het toestel. Pas als dat op schijf staat, bevestigen.
+    addScan(rec).then(function () {
+      openSscc = null;
+      lastWriteAt = Date.now(); lastWriteRaw = cleaned || '';
+      snap.queue = snap.queue.concat([rec]);
+      snap.history = [rec].concat(snap.history).slice(0, 5);
+      storageOk = true;
+      render(); signal('ok');
+      flash('ok', target, 'Pallet …' + sscc.slice(-6), 1800);
+      announce();
+      release();
+      // 2. Daarna verzenden.
+      refresh().then(flush);
+    }, function () {
+      storageOk = false;
+      render(); signal('err');
+      flash('err', 'NIET BEWAARD', 'Opslag op het toestel mislukt. Pallet blijft open. Verwittig de verantwoordelijke.');
+      release();
+    });
+  }
+
+  /* ------------------------------------------------------------------
+     Verzenden: één verzending tegelijk, oudste eerst, blijven proberen.
+     ------------------------------------------------------------------ */
+  var sending = false, sendAgain = false, retryTimer = null, retryDelay = 0;
+  var net = { kind: 'idle', text: '' };
+
+  function setNet(kind, text) { net = { kind: kind, text: text || '' }; renderNet(); }
+  function renderNet() {
+    var n = snap.queue.length, el = $('net'), text, bad = false;
+    if (!storageOk) { text = 'Opslag op het toestel werkt niet'; bad = true; }
+    else if (!endpoint() || !sharedKey()) { text = 'Niet ingesteld: open ⚙'; bad = true; }
+    else if (net.kind === 'sending') text = 'Verzenden…';
+    else if (net.kind === 'fail') { text = net.text; bad = true; }
+    else if (n === 0) text = 'Alles verzonden';
+    else text = n + ' wacht' + (n === 1 ? '' : 'en') + ' op verzending';
+    el.textContent = text; el.classList.toggle('bad', bad);
+  }
+
+  function postJson(url, body) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, CONFIG.SEND_TIMEOUT_MS);
+    // text/plain vermijdt een CORS-preflight, die Apps Script niet beantwoordt.
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+      redirect: 'follow',
+      cache: 'no-store',
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function (r) { return r.text(); }).then(function (t) {
+      clearTimeout(timer);
+      try { return JSON.parse(t); } catch (e) { return { ok: false, error: 'badresponse' }; }
+    }, function (e) { clearTimeout(timer); throw e; });
+  }
+
+  var ERR_TEXT = {
+    unauthorized: 'Sleutel geweigerd: controleer ⚙',
+    badresponse: 'Server antwoordt fout: controleer adres en publicatie',
+    busy: 'Server bezet: nieuwe poging volgt',
+    storage: 'Opslag op het toestel hapert: nieuwe poging volgt'
+  };
+  function errText(code) {
+    if (code === 'network') return (navigator.onLine === false ? 'Geen verbinding' : 'Verzenden mislukt') + ': nieuwe poging volgt';
+    return ERR_TEXT[code] || 'Serverfout: nieuwe poging volgt';
+  }
+
+  function sendBatch(url, key, batch) {
+    var payload = batch.map(function (r) { return { id: r.id, ts: r.ts, sscc: r.sscc, loc: r.loc, dev: r.dev }; });
+    return postJson(url, { key: key, scans: payload }).then(function (res) {
+      if (!res || !res.ok) return { ok: false, error: (res && res.error) || 'server' };
+      var acked = {}, rejMap = {};
+      (res.written || []).concat(res.duplicates || []).forEach(function (id) { acked[id] = true; });
+      (res.rejected || []).forEach(function (r) { if (r && r.id) rejMap[r.id] = r.reason || 'geweigerd'; });
+      var done = [], rej = [];
+      batch.forEach(function (r) {
+        if (acked[r.id]) done.push(r.seq);
+        else if (rejMap[r.id]) { r.reason = rejMap[r.id]; rej.push(r); } // blokkeert de wachtrij niet, blijft wel op het toestel
+      });
+      if (!done.length && !rej.length) return { ok: false, error: 'server' };
+      return settle(done, rej).then(function () { announce(); return { ok: true }; },
+                                    function () { return { ok: false, error: 'storage' }; });
+    }, function () { return { ok: false, error: 'network' }; });
+  }
+
+  function flush() {
+    if (sending) { sendAgain = true; return; } // er loopt al een verzending: daarna nog eens kijken
+    sendAgain = false;
+    clearTimeout(retryTimer); retryTimer = null;
+    var url = endpoint(), key = sharedKey();
+    if (!url || !key) { setNet('idle'); return; }
+    sending = true;
+    readAll().then(function (s) {
+      snap = s; storageOk = true;
+      if (!s.queue.length) return { ok: true, empty: true };
+      setNet('sending');
+      return sendBatch(url, key, s.queue.slice(0, CONFIG.BATCH_SIZE));
+    }, function () {
+      storageOk = false;
+      return { ok: false, error: 'storage' };
+    }).then(function (out) {
+      sending = false;
+      if (out.ok) {
+        retryDelay = 0; setNet('idle');
+        if (out.empty && !sendAgain) { render(); return; }
+        refresh().then(function () { if (snap.queue.length) flush(); });
+      } else {
+        retryDelay = Math.min(retryDelay ? retryDelay * 2 : CONFIG.RETRY_MIN_MS, CONFIG.RETRY_MAX_MS);
+        setNet('fail', errText(out.error));
+        render();
+        retryTimer = setTimeout(flush, retryDelay);
+      }
+    });
+  }
+
+  window.addEventListener('online', function () { retryDelay = 0; flush(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { retryDelay = 0; refresh().then(flush); keepFocus(); } });
+  // Vangnet: elke 5 s het scherm gelijkzetten met de opslag en verzenden wat er nog staat.
+  setInterval(function () { refresh().then(function () { if (!sending && !retryTimer && snap.queue.length) flush(); }); }, 5000);
+
+  /* ------------------------------------------------------------------
+     Toetsen en scanner. De scanner werkt als toetsenbord: tekens + Enter.
+     Het invoerveld houdt altijd de focus (zonder schermtoetsenbord); alles
+     wat toch ergens anders terechtkomt, wordt op paginaniveau opgevangen.
+     ------------------------------------------------------------------ */
+  function keyMatches(e, list) {
+    if (!list) return false;
+    for (var i = 0; i < list.length; i++) {
+      var b = String(list[i]);
+      if (b === e.key || b === e.code || b === String(e.keyCode)) return true;
+    }
+    return false;
+  }
+
+  function submitInput() {
+    var v = inp.value;
+    inp.value = '';
+    handleInput(v);
+  }
+
+  document.addEventListener('keydown', function (e) {
+    unlockAudio();
+    if (dlgOpen) {
+      $('keytest').textContent = 'key = "' + e.key + '"   code = "' + e.code + '"   keyCode = ' + e.keyCode;
+      if (e.key === 'Escape') { e.preventDefault(); closeDialog(); }
+      else if (/^F\d+$/.test(e.key)) e.preventDefault();
+      return;
+    }
+    if (keyMatches(e, CONFIG.KEYS_UITGENOMEN)) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { inp.value = ''; command('UITGENOMEN'); } return; }
+    if (keyMatches(e, CONFIG.KEYS_VERZONDEN)) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { inp.value = ''; command('VERZONDEN'); } return; }
+    if (keyMatches(e, CONFIG.KEYS_ANNULEREN)) {
+      e.preventDefault(); e.stopPropagation();
+      if (!e.repeat) { inp.value = ''; hideFlash(); command('ANNULEREN'); }
+      return;
+    }
+    if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) submitInput(); return; }
+    if (/^F\d+$/.test(e.key)) { e.preventDefault(); return; } // andere functietoetsen: geen browserhulp, geen herladen
+
+    // Een nieuwe toets of scan haalt een foutmelding weg.
+    if ($('flash').className === 'err') hideFlash();
+
+    // Staat de focus niet in het invoerveld, dan het teken zelf toevoegen.
+    if (document.activeElement !== inp) {
+      if (e.key === 'Backspace') { inp.value = inp.value.slice(0, -1); e.preventDefault(); }
+      else if (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { inp.value += e.key; e.preventDefault(); }
+      keepFocus();
+    }
+  }, true);
+
+  $('f').addEventListener('submit', function (e) { e.preventDefault(); if (!dlgOpen) submitInput(); });
+  inp.addEventListener('input', function () { if ($('flash').className === 'err') hideFlash(); });
+
+  function keepFocus() {
+    if (dlgOpen) return;
+    if (document.activeElement !== inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }
+  }
+  inp.addEventListener('blur', function () { setTimeout(keepFocus, 0); });
+  window.addEventListener('focus', keepFocus);
+  document.addEventListener('pointerup', function () { setTimeout(keepFocus, 0); });
+  setInterval(keepFocus, 1000);
+
+  // Knoppen op het scherm: focus niet wegnemen van het invoerveld.
+  function bindButton(id, fn) {
+    var el = $(id);
+    el.addEventListener('pointerdown', function (e) { e.preventDefault(); unlockAudio(); });
+    el.addEventListener('click', function (e) { e.preventDefault(); fn(); keepFocus(); });
+  }
+  bindButton('bUit', function () { inp.value = ''; command('UITGENOMEN'); });
+  bindButton('bVerz', function () { inp.value = ''; command('VERZONDEN'); });
+  bindButton('bCancel', function () { inp.value = ''; hideFlash(); command('ANNULEREN'); });
+  bindButton('kbd', function () { // schermtoetsenbord, voor testen op een smartphone
+    var on = inp.getAttribute('inputmode') === 'none';
+    inp.setAttribute('inputmode', on ? 'text' : 'none');
+    $('kbd').classList.toggle('on', on);
+    inp.blur(); // de blur-handler zet de focus terug, met het nieuwe toetsenbordgedrag
+  });
+  $('kUit').textContent = keyLabel(CONFIG.KEYS_UITGENOMEN, 'F1');
+  $('kVerz').textContent = keyLabel(CONFIG.KEYS_VERZONDEN, 'F2');
+  $('kCancel').textContent = keyLabel(CONFIG.KEYS_ANNULEREN, 'Esc');
+
+  /* ------------------------------------------------------------------
+     Instellingen per toestel
+     ------------------------------------------------------------------ */
+  function dumpText() {
+    var line = function (r, tag) { return [dateTimeText(r.ts), r.sscc, r.loc, r.id, r.dev || '', tag + (r.reason ? ': ' + r.reason : '')].join('\t'); };
+    var out = snap.queue.map(function (r) { return line(r, 'wacht'); }).concat(snap.rejected.map(function (r) { return line(r, 'geweigerd'); }));
+    return out.length ? out.join('\n') : '(leeg)';
+  }
+  function dlgMsg(text, cls) { $('dlgmsg').textContent = text; $('dlgmsg').className = cls || ''; }
+  function fillDump() { $('sDump').value = dumpText(); $('sRetry').hidden = !snap.rejected.length; }
+
+  function openDialog() {
+    dlgOpen = true;
+    inp.value = ''; inp.blur();
+    $('sDev').value = settings.dev || '';
+    $('sKey').value = settings.key || '';
+    $('sUrl').value = settings.url || '';
+    $('sKeyHelp').textContent = CONFIG.SHARED_KEY ? 'Leeg laten om de sleutel uit index.html te gebruiken.' : 'Dezelfde sleutel als SHARED_KEY in Code.gs. Typen of als barcode scannen.';
+    $('sUrlHelp').textContent = CONFIG.ENDPOINT_URL ? 'Leeg laten om het adres uit index.html te gebruiken.' : 'Eindigt op /exec.';
+    dlgMsg('');
+    fillDump();
+    refresh().then(fillDump);
+    $('dlg').hidden = false;
+  }
+  function closeDialog() { $('dlg').hidden = true; dlgOpen = false; inp.value = ''; render(); keepFocus(); flush(); }
+  function readDialog() {
+    settings.dev = cleanDev($('sDev').value) || settings.dev;
+    settings.key = ($('sKey').value || '').trim();
+    settings.url = ($('sUrl').value || '').trim();
+    $('sDev').value = settings.dev;
+    return saveSettings();
+  }
+
+  $('gear').addEventListener('click', openDialog);
+  $('sClose').addEventListener('click', closeDialog);
+  $('sSave').addEventListener('click', function () {
+    if (readDialog()) { dlgMsg('Bewaard.', 'ok'); retryDelay = 0; } else dlgMsg('Bewaren mislukt.', 'bad');
+  });
+  $('sTest').addEventListener('click', function () {
+    if (!readDialog()) { dlgMsg('Bewaren mislukt.', 'bad'); return; }
+    if (!endpoint() || !sharedKey()) { dlgMsg('Vul eerst adres en sleutel in.', 'bad'); return; }
+    dlgMsg('Testen…');
+    postJson(endpoint(), { key: sharedKey(), ping: true }).then(function (res) {
+      if (res && res.ok) dlgMsg('Verbinding in orde. Er is niets weggeschreven.', 'ok');
+      else dlgMsg(ERR_TEXT[res && res.error] || 'Serverfout: ' + ((res && res.error) || 'onbekend'), 'bad');
+    }, function () { dlgMsg('Geen antwoord. Controleer de wifi, het adres, en of de web-app gepubliceerd is voor "Iedereen".', 'bad'); });
+  });
+  $('sRetry').addEventListener('click', function () {
+    requeueRejected().then(function () { announce(); return refresh(); }).then(function () {
+      fillDump(); dlgMsg('Geweigerde scans staan opnieuw in de wachtrij.', 'ok'); retryDelay = 0; flush();
+    }, function () { dlgMsg('Terugzetten mislukt.', 'bad'); });
+  });
+
+  /* ------------------------------------------------------------------
+     Start
+     ------------------------------------------------------------------ */
+  if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist().catch(function () {}); } catch (e) {} }
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+  render();
+  keepFocus();
+  refresh().then(flush);
+})();
+</script>
+</body>
+</html>

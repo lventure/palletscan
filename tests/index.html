@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palletscan – tests</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; background: #fff; color: #111; }
+  h1 { font-size: 20px; }
+  #sum { font-size: 18px; font-weight: 700; padding: 8px 12px; border-radius: 6px; display: inline-block; }
+  #sum.ok { background: #0a8f2e; color: #fff; }
+  #sum.bad { background: #d00000; color: #fff; }
+  li { margin: 2px 0; }
+  li.bad { color: #b00000; font-weight: 700; }
+  small { display: block; font-weight: 400; }
+</style>
+</head>
+<body>
+<h1>Palletscan – tests voor SSCC en locatie</h1>
+<p id="sum">Bezig…</p>
+<ol id="list"></ol>
+<script src="../scanlogic.js"></script>
+<script src="cases.js"></script>
+<script>
+  var results = runScanLogicTests(ScanLogic);
+  var failed = results.filter(function (r) { return !r.ok; }).length;
+  var sum = document.getElementById('sum');
+  sum.textContent = (results.length - failed) + ' van ' + results.length + ' tests geslaagd';
+  sum.className = failed ? 'bad' : 'ok';
+  var list = document.getElementById('list');
+  results.forEach(function (r) {
+    var li = document.createElement('li');
+    li.textContent = (r.ok ? '✔ ' : '✖ ') + r.name;
+    if (!r.ok) { li.className = 'bad'; var s = document.createElement('small'); s.textContent = r.detail; li.appendChild(s); }
+    list.appendChild(li);
+  });
+</script>
+</body>
+</html>
