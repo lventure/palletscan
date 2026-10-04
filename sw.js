@@ -32,7 +32,9 @@ self.addEventListener('install', function (event) {
 self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+      // Alleen de eigen oude caches opruimen. Andere apps op hetzelfde adres
+      // (QC Rondgang) bewaren hun bestanden in dezelfde opslag.
+      return Promise.all(keys.filter(function (k) { return k.indexOf('palletscan-') === 0 && k !== CACHE; }).map(function (k) { return caches.delete(k); }));
     }).then(function () { return self.clients.claim(); })
   );
 });
