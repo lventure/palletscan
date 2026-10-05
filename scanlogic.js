@@ -12,13 +12,15 @@
 
   var DEFAULTS = {
     locationPattern: '^[A-Z][0-9]{2}$',          // één letter + twee cijfers, bv. A03
-    barcodeUitgenomen: 'CMDUIT',
-    barcodeVerzonden: 'CMDVERZ',
-    barcodeKlaar: 'CMDKLAAR',
-    barcodeAnnuleren: 'CMDESC',
-    textUitgenomen: 'Uitgenomen',
-    textVerzonden: 'Verzonden',
-    textKlaar: 'Klaar'
+    // Vaste bestemmingen. "text" komt in kolom C; "barcode" is de
+    // commando-barcode als reserve voor de sneltoets (leeg = geen).
+    statuses: [
+      { text: 'Uitgenomen', barcode: 'CMDUIT' },
+      { text: 'Verzonden', barcode: 'CMDVERZ' },
+      { text: 'Gang', barcode: 'CMDGANG' },
+      { text: 'TEE', barcode: 'CMDTEE' }
+    ],
+    barcodeAnnuleren: 'CMDESC'
   };
 
   function withDefaults(cfg) {
@@ -63,7 +65,8 @@
    * Resultaat is één van:
    *   { type: 'sscc',     sscc: '18 cijfers' }
    *   { type: 'location', location: 'A03' }
-   *   { type: 'command',  command: 'UITGENOMEN' | 'VERZONDEN' | 'KLAAR' | 'ANNULEREN' }
+   *   { type: 'status',   target: 'Gang' }             een vaste bestemming uit de lijst
+   *   { type: 'command',  command: 'ANNULEREN' }
    *   { type: 'error',    code, message, detail }
    */
   function parseScan(raw, cfg) {
@@ -73,10 +76,17 @@
     var upper = s.toUpperCase();
     var shown = s.length > 30 ? s.slice(0, 30) + '…' : s;
 
-    // 1. Commando-barcodes (reserve voor de functietoetsen)
-    if (c.barcodeUitgenomen && upper === String(c.barcodeUitgenomen).toUpperCase()) return { type: 'command', command: 'UITGENOMEN' };
-    if (c.barcodeVerzonden && upper === String(c.barcodeVerzonden).toUpperCase()) return { type: 'command', command: 'VERZONDEN' };
-    if (c.barcodeKlaar && upper === String(c.barcodeKlaar).toUpperCase()) return { type: 'command', command: 'KLAAR' };
+    // 1. Vaste bestemmingen: de commando-barcode (reserve voor de sneltoets),
+    //    of exact de naam zelf, gescand of getypt (bv. "TEE").
+    var list = Array.isArray(c.statuses) ? c.statuses : [], i, st;
+    for (i = 0; i < list.length; i++) {
+      st = list[i];
+      if (!st || !st.text) continue;
+      if ((st.barcode && upper === String(st.barcode).toUpperCase()) ||
+          upper === String(st.text).replace(/\s+/g, '').toUpperCase()) {
+        return { type: 'status', target: String(st.text) };
+      }
+    }
     if (c.barcodeAnnuleren && upper === String(c.barcodeAnnuleren).toUpperCase()) return { type: 'command', command: 'ANNULEREN' };
 
     var pattern = new RegExp(c.locationPattern);
@@ -112,13 +122,12 @@
    * Beslissen wat er gebeurt, gegeven de open pallet (SSCC of null) en een
    * ontlede scan. Resultaat is één van:
    *   { do: 'open',   sscc }
-   *   { do: 'write',  sscc, target }      target = locatie, "Uitgenomen", "Verzonden" of "Klaar"
+   *   { do: 'write',  sscc, target }      target = locatie of een vaste bestemming (bv. "Gang")
    *   { do: 'cancel', sscc }
    *   { do: 'ignore' }                    niets doen (bv. dezelfde pallet opnieuw gescand)
    *   { do: 'error',  message, detail }
    */
-  function decide(openSscc, parsed, cfg) {
-    var c = withDefaults(cfg);
+  function decide(openSscc, parsed) {
     if (!parsed || parsed.type === 'error') {
       return { do: 'error', message: parsed ? parsed.message : 'Onbekende invoer', detail: parsed ? parsed.detail : '' };
     }
@@ -131,12 +140,12 @@
       if (!openSscc) return { do: 'error', message: 'Eerst pallet scannen', detail: 'Locatie ' + parsed.location + ' is niet weggeschreven.' };
       return { do: 'write', sscc: openSscc, target: parsed.location };
     }
-    if (parsed.type === 'command') {
-      if (parsed.command === 'ANNULEREN') return openSscc ? { do: 'cancel', sscc: openSscc } : { do: 'ignore' };
+    if (parsed.type === 'status') {
       if (!openSscc) return { do: 'error', message: 'Eerst pallet scannen', detail: 'Er staat geen pallet open.' };
-      if (parsed.command === 'UITGENOMEN') return { do: 'write', sscc: openSscc, target: c.textUitgenomen };
-      if (parsed.command === 'VERZONDEN') return { do: 'write', sscc: openSscc, target: c.textVerzonden };
-      if (parsed.command === 'KLAAR') return { do: 'write', sscc: openSscc, target: c.textKlaar };
+      return { do: 'write', sscc: openSscc, target: parsed.target };
+    }
+    if (parsed.type === 'command' && parsed.command === 'ANNULEREN') {
+      return openSscc ? { do: 'cancel', sscc: openSscc } : { do: 'ignore' };
     }
     return { do: 'error', message: 'Onbekende invoer', detail: '' };
   }

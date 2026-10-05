@@ -104,7 +104,7 @@
       eq(L.parseScan(A).type, 'sscc'); eq(L.parseScan('00' + A).type, 'sscc'); eq(L.parseScan('A03').type, 'location');
       eq(L.isValidSscc('A03'), false);
     });
-    test('locatie: een commando-barcode is geen locatie', function () { eq(L.parseScan('CMDUIT').type, 'command'); eq(errCode('CMD'), 'unknown'); });
+    test('locatie: een commando-barcode is geen locatie', function () { eq(L.parseScan('CMDUIT').type, 'status'); eq(L.parseScan('CMDESC').type, 'command'); eq(errCode('CMD'), 'unknown'); });
     test('locatie: patroon beperken tot de bestaande rijen (A tot D)', function () {
       var cfg = { locationPattern: '^[A-D][0-9]{2}$' };
       eq(loc('D94', cfg), 'D94'); eq(loc('a04', cfg), 'A04'); eq(errCode('E03', cfg), 'unknown');
@@ -122,45 +122,69 @@
       eq(loc('312', cfg), '312'); eq(sscc(A, cfg), A); eq(sscc('00' + A, cfg), A); eq(errCode('3120', cfg), 'not_sscc');
     });
 
-    // ---------- Commando-barcodes ----------
-    test('commando-barcodes', function () {
-      eq(L.parseScan('CMDUIT'), { type: 'command', command: 'UITGENOMEN' });
-      eq(L.parseScan('cmdverz'), { type: 'command', command: 'VERZONDEN' });
-      eq(L.parseScan('CMDKLAAR'), { type: 'command', command: 'KLAAR' });
+    // ---------- Vaste bestemmingen (sneltoetsen) ----------
+    test('bestemming: commando-barcodes', function () {
+      eq(L.parseScan('CMDUIT'), { type: 'status', target: 'Uitgenomen' });
+      eq(L.parseScan('cmdverz'), { type: 'status', target: 'Verzonden' });
+      eq(L.parseScan('CMDGANG'), { type: 'status', target: 'Gang' });
+      eq(L.parseScan(']C0CMDTEE'), { type: 'status', target: 'TEE' });
       eq(L.parseScan(']C1CMDESC'), { type: 'command', command: 'ANNULEREN' });
     });
-    test('commando-barcode uitgeschakeld (leeg) wordt niet herkend', function () {
-      eq(errCode('CMDKLAAR', { barcodeKlaar: '' }), 'unknown');
+    test('bestemming: de naam zelf scannen of typen werkt ook', function () {
+      eq(L.parseScan('TEE'), { type: 'status', target: 'TEE' });
+      eq(L.parseScan('tee'), { type: 'status', target: 'TEE' });
+      eq(L.parseScan('gang'), { type: 'status', target: 'Gang' });
+      eq(L.parseScan(' Uitgenomen\r'), { type: 'status', target: 'Uitgenomen' });
+    });
+    test('bestemming: "Klaar" bestaat niet meer', function () { eq(errCode('CMDKLAAR'), 'unknown'); eq(errCode('Klaar'), 'unknown'); });
+    test('bestemming: bijna-namen zijn geen bestemming', function () { eq(errCode('TE'), 'unknown'); eq(errCode('TEEE'), 'unknown'); eq(errCode('GANGEN'), 'unknown'); eq(errCode('CMD'), 'unknown'); });
+    test('bestemming: lijst instelbaar (toevoegen, hernoemen, weghalen)', function () {
+      var cfg = { statuses: [{ text: 'Kade 2', barcode: 'CMDKADE' }, { text: 'Blok', barcode: '' }] };
+      eq(L.parseScan('CMDKADE', cfg), { type: 'status', target: 'Kade 2' });
+      eq(L.parseScan('kade2', cfg), { type: 'status', target: 'Kade 2' });
+      eq(L.parseScan('BLOK', cfg), { type: 'status', target: 'Blok' });
+      eq(errCode('CMDTEE', cfg), 'unknown'); eq(errCode('TEE', cfg), 'unknown');
+      eq(loc('A03', cfg), 'A03'); eq(sscc(A, cfg), A);
+    });
+    test('bestemming: lege lijst of lege regels geven geen fout', function () {
+      eq(errCode('CMDUIT', { statuses: [] }), 'unknown');
+      eq(L.parseScan('CMDTEE', { statuses: [null, {}, { text: '' }, { text: 'TEE', barcode: 'CMDTEE' }] }), { type: 'status', target: 'TEE' });
+    });
+    test('bestemming: een SSCC of locatie wordt nooit als bestemming gelezen', function () {
+      eq(L.parseScan(A).type, 'sscc'); eq(L.parseScan('A03').type, 'location'); eq(L.parseScan('T33').type, 'location');
     });
 
     // ---------- Scanflow ----------
     function step(open, raw) { return L.decide(open, L.parseScan(raw)); }
     test('flow: SSCC zonder open pallet opent de pallet', function () { eq(step(null, '00' + A), { do: 'open', sscc: A }); });
     test('flow: locatie met open pallet schrijft weg', function () { eq(step(A, 'A03'), { do: 'write', sscc: A, target: 'A03' }); eq(step(A, 'a04'), { do: 'write', sscc: A, target: 'A04' }); });
-    test('flow: F1 / F2 / F3 met open pallet', function () {
-      eq(L.decide(A, { type: 'command', command: 'UITGENOMEN' }), { do: 'write', sscc: A, target: 'Uitgenomen' });
-      eq(L.decide(A, { type: 'command', command: 'VERZONDEN' }), { do: 'write', sscc: A, target: 'Verzonden' });
-      eq(L.decide(A, { type: 'command', command: 'KLAAR' }), { do: 'write', sscc: A, target: 'Klaar' });
+    test('flow: bestemming met open pallet schrijft de naam weg', function () {
+      eq(L.decide(A, { type: 'status', target: 'Uitgenomen' }), { do: 'write', sscc: A, target: 'Uitgenomen' });
+      eq(L.decide(A, { type: 'status', target: 'Verzonden' }), { do: 'write', sscc: A, target: 'Verzonden' });
+      eq(L.decide(A, { type: 'status', target: 'Gang' }), { do: 'write', sscc: A, target: 'Gang' });
+      eq(L.decide(A, { type: 'status', target: 'TEE' }), { do: 'write', sscc: A, target: 'TEE' });
     });
-    test('flow: commando-barcode Klaar met open pallet', function () { eq(step(A, 'CMDKLAAR'), { do: 'write', sscc: A, target: 'Klaar' }); });
+    test('flow: commando-barcode of getypte naam met open pallet', function () {
+      eq(step(A, 'CMDGANG'), { do: 'write', sscc: A, target: 'Gang' });
+      eq(step(A, 'CMDTEE'), { do: 'write', sscc: A, target: 'TEE' });
+      eq(step(A, 'tee'), { do: 'write', sscc: A, target: 'TEE' });
+    });
     test('flow: Esc met open pallet annuleert, zonder open pallet gebeurt niets', function () {
       eq(L.decide(A, { type: 'command', command: 'ANNULEREN' }), { do: 'cancel', sscc: A });
       eq(L.decide(null, { type: 'command', command: 'ANNULEREN' }), { do: 'ignore' });
+      eq(step(A, 'CMDESC'), { do: 'cancel', sscc: A });
     });
     test('flow: tweede SSCC met open pallet wordt geblokkeerd', function () { eq(step(A, C).do, 'error'); });
     test('flow: dezelfde SSCC opnieuw scannen doet niets', function () { eq(step(A, '00' + A), { do: 'ignore' }); });
     test('flow: locatie zonder open pallet -> fout', function () { eq(step(null, 'A03').do, 'error'); eq(step(null, 'd94').do, 'error'); });
-    test('flow: F1 / F2 / F3 zonder open pallet -> fout', function () {
-      eq(L.decide(null, { type: 'command', command: 'UITGENOMEN' }).do, 'error');
-      eq(L.decide(null, { type: 'command', command: 'VERZONDEN' }).do, 'error');
-      eq(L.decide(null, { type: 'command', command: 'KLAAR' }).do, 'error');
+    test('flow: bestemming zonder open pallet -> fout', function () {
+      eq(L.decide(null, { type: 'status', target: 'Uitgenomen' }).do, 'error');
+      eq(L.decide(null, { type: 'status', target: 'TEE' }).do, 'error');
+      eq(step(null, 'CMDGANG').do, 'error'); eq(step(null, 'TEE').do, 'error');
     });
     test('flow: ongeldige scan is altijd een fout, met of zonder open pallet', function () {
       eq(step(null, '340123451234567890').do, 'error'); eq(step(A, '5412345678908').do, 'error'); eq(step(A, 'A3').do, 'error'); eq(step(A, 'LOCA03').do, 'error');
-    });
-    test('flow: statusteksten instelbaar', function () {
-      eq(L.decide(A, { type: 'command', command: 'VERZONDEN' }, { textVerzonden: 'Weg' }).target, 'Weg');
-      eq(L.decide(A, { type: 'command', command: 'KLAAR' }, { textKlaar: 'Gereed' }).target, 'Gereed');
+      eq(step(A, 'CMDKLAAR').do, 'error');
     });
 
     return results;

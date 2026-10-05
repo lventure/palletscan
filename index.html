@@ -14,7 +14,7 @@
    CONFIGURATIE – alle instelbare waarden staan hier samen.
    ====================================================================== */
 var CONFIG = {
-  APP_VERSION: "1.2.0",
+  APP_VERSION: "1.3.0",
 
   /* --- Verzenden ---------------------------------------------------- */
   // Web-app-adres van het Apps Script (eindigt op /exec).
@@ -32,27 +32,27 @@ var CONFIG = {
   // rijen A tot D, dan weigert "^[A-D][0-9]{2}$" ook een foute letter.
   LOCATION_PATTERN: "^[A-Z][0-9]{2}$",
 
-  /* --- Toetsen ------------------------------------------------------ */
-  // Elke waarde wordt vergeleken met key, code en keyCode van de toets.
-  // Wat een toets op dit toestel doorstuurt, zie je in ⚙ > Toetstest.
-  // Meerdere toetsen per actie mag, bv. ["F1", "F5"]. Gebruik geen cijfers
-  // of letters: die zijn nodig om te typen.
-  KEYS_UITGENOMEN: ["F1"],
-  KEYS_VERZONDEN: ["F2"],
-  KEYS_KLAAR: ["F3"],
+  /* --- Vaste bestemmingen met een sneltoets -------------------------- */
+  // Eén regel per bestemming. Een regel toevoegen, hernoemen of weghalen
+  // volstaat: de knop op het scherm en de sneltoets volgen vanzelf.
+  //   text:    wat in kolom C komt. Alleen letters, cijfers, spatie, punt en
+  //            streepjes; anders weigert het Apps Script de scan.
+  //   keys:    de sneltoets(en). Elke waarde wordt vergeleken met key, code en
+  //            keyCode van de toets; wat een toets op dit toestel doorstuurt,
+  //            zie je in ⚙ > Toetstest. Meerdere toetsen mag, bv. ["F1", "F5"].
+  //            Gebruik geen cijfers of letters: die zijn nodig om te typen.
+  //   barcode: commando-barcode als reserve voor de toets. Druk ze af en kleef
+  //            ze op de heftruck. Leeg ("") = geen.
+  STATUSES: [
+    { text: "Uitgenomen", keys: ["F1"], barcode: "CMDUIT" },
+    { text: "Verzonden",  keys: ["F2"], barcode: "CMDVERZ" },
+    { text: "Gang",       keys: ["F3"], barcode: "CMDGANG" },
+    { text: "TEE",        keys: ["F4"], barcode: "CMDTEE" }
+  ],
+
+  /* --- Annuleren ------------------------------------------------------ */
   KEYS_ANNULEREN: ["Escape"],
-
-  /* --- Commando-barcodes (reserve als de functietoetsen niet werken) -- */
-  // Druk deze af en kleef ze op de heftruck. Leeg ("") = uitgeschakeld.
-  BARCODE_UITGENOMEN: "CMDUIT",
-  BARCODE_VERZONDEN: "CMDVERZ",
-  BARCODE_KLAAR: "CMDKLAAR",
   BARCODE_ANNULEREN: "CMDESC",
-
-  /* --- Tekst in kolom C ---------------------------------------------- */
-  TEXT_UITGENOMEN: "Uitgenomen",
-  TEXT_VERZONDEN: "Verzonden",
-  TEXT_KLAAR: "Klaar",
 
   /* --- Gedrag --------------------------------------------------------- */
   DUPLICATE_SCAN_MS: 1500,   // dezelfde barcode binnen deze tijd = dubbele lezing, genegeerd
@@ -112,11 +112,11 @@ var CONFIG = {
   #kbd.on { background: #ffd500; color: #000; }
 
   /* Actieknoppen */
-  #actions { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: #000; }
-  #actions button { min-height: clamp(44px, 13.5vw, 84px); border-radius: 8px; background: #fff; color: #000; font-size: clamp(14px, 4.5vw, 28px); font-weight: 900; line-height: 1.05; padding: 2px; white-space: nowrap; }
-  #actions button .k { font-size: clamp(19px, 6vw, 40px); margin-right: 3px; }
+  #actions { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #000; }
+  #actions button { min-height: clamp(48px, 15vw, 84px); border-radius: 8px; background: #fff; color: #000; font-size: clamp(13px, 4.2vw, 28px); font-weight: 900; line-height: 1.05; padding: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #actions button .k { display: block; font-size: clamp(19px, 6vw, 40px); }
   #actions button:active { background: #ffd500; }
-  #actions #bCancel { background: #bdbdbd; }
+  #actions #bCancel { background: #bdbdbd; grid-column: span var(--cancel-span, 1); }
   body:not(.open) #actions button { background: #333; color: #8a8a8a; }
 
   /* Laatste scans */
@@ -141,8 +141,8 @@ var CONFIG = {
   /* Brede schermen (pc, liggend toestel): scans rechts naast het hoofdvlak */
   @media (min-width: 600px) {
     #hist .s .head, #hist .st .w { display: inline; } #hist .s .dots { display: none; }
-    #actions { grid-template-columns: 1fr 1fr 1fr 1fr; }
-    #actions button .k { display: block; margin-right: 0; }
+    #actions { grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); }
+    #actions #bCancel { grid-column: auto; }
   }
   @media (orientation: landscape) and (max-height: 420px) {
     body { display: grid; grid-template-columns: minmax(0, 54fr) minmax(0, 46fr); grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; }
@@ -160,9 +160,10 @@ var CONFIG = {
     #flashicon { font-size: min(8vw, 18vh); }
     #flashsub { font-size: clamp(13px, 2.8vw, 22px); }
     #in, #kbd { font-size: clamp(16px, 3.4vw, 24px); }
-    #actions { grid-template-columns: 1fr 1fr; }
-    #actions button { min-height: 40px; font-size: clamp(11px, 2.2vw, 18px); }
-    #actions button .k { display: inline; margin-right: 3px; font-size: clamp(15px, 3.2vw, 24px); }
+    #actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    #actions #bCancel { grid-column: span var(--cancel-span, 1); }
+    #actions button { min-height: 38px; font-size: clamp(9.5px, 1.85vw, 18px); padding: 1px; }
+    #actions button .k { font-size: clamp(14px, 3vw, 24px); }
     #hist { font-size: clamp(12px, 2.5vw, 18px); overflow: hidden; border-top: 0; }
     #foot { font-size: clamp(11px, 2.2vw, 16px); }
     #gear { font-size: clamp(18px, 4vw, 28px); }
@@ -209,12 +210,7 @@ var CONFIG = {
   <button type="button" id="kbd" aria-label="Schermtoetsenbord aan/uit">⌨</button>
 </form>
 
-<div id="actions">
-  <button type="button" id="bUit"><span class="k" id="kUit">F1</span> Uitgenomen</button>
-  <button type="button" id="bVerz"><span class="k" id="kVerz">F2</span> Verzonden</button>
-  <button type="button" id="bKlaar"><span class="k" id="kKlaar">F3</span> Klaar</button>
-  <button type="button" id="bCancel"><span class="k" id="kCancel">Esc</span> Annuleer</button>
-</div>
+<div id="actions"></div>
 
 <ol id="hist" aria-label="Laatste 5 scans"></ol>
 
@@ -262,15 +258,13 @@ var CONFIG = {
   var L = window.ScanLogic;
   var $ = function (id) { return document.getElementById(id); };
 
+  // Vaste bestemmingen uit het configuratieblok (regels zonder tekst vallen weg).
+  var STATUSES = (Array.isArray(CONFIG.STATUSES) ? CONFIG.STATUSES : []).filter(function (st) { return st && st.text; });
+
   var LOGIC_CFG = {
     locationPattern: CONFIG.LOCATION_PATTERN,
-    barcodeUitgenomen: CONFIG.BARCODE_UITGENOMEN,
-    barcodeVerzonden: CONFIG.BARCODE_VERZONDEN,
-    barcodeKlaar: CONFIG.BARCODE_KLAAR,
-    barcodeAnnuleren: CONFIG.BARCODE_ANNULEREN,
-    textUitgenomen: CONFIG.TEXT_UITGENOMEN,
-    textVerzonden: CONFIG.TEXT_VERZONDEN,
-    textKlaar: CONFIG.TEXT_KLAAR
+    statuses: STATUSES,
+    barcodeAnnuleren: CONFIG.BARCODE_ANNULEREN
   };
 
   /* ------------------------------------------------------------------
@@ -546,15 +540,22 @@ var CONFIG = {
       if (!cleaned) return;
       if (lastWriteRaw && cleaned === lastWriteRaw && justWritten()) return;
       lastWriteRaw = '';
-      apply(L.decide(openSscc, L.parseScan(raw, LOGIC_CFG), LOGIC_CFG), cleaned);
+      apply(L.decide(openSscc, L.parseScan(raw, LOGIC_CFG)), cleaned);
     });
   }
-  function command(name) {
+  function chooseStatus(i) { // sneltoets of knop van een vaste bestemming
     if (dlgOpen) return;
     whenIdle(function () {
-      if (!openSscc && name !== 'ANNULEREN' && justWritten()) return;
+      if (!openSscc && justWritten()) return;
       lastWriteRaw = '';
-      apply(L.decide(openSscc, { type: 'command', command: name }, LOGIC_CFG), '');
+      apply(L.decide(openSscc, { type: 'status', target: STATUSES[i].text }), '');
+    });
+  }
+  function cancelPallet() {
+    if (dlgOpen) return;
+    whenIdle(function () {
+      lastWriteRaw = '';
+      apply(L.decide(openSscc, { type: 'command', command: 'ANNULEREN' }), '');
     });
   }
 
@@ -727,12 +728,12 @@ var CONFIG = {
       else if (/^F\d+$/.test(e.key)) e.preventDefault();
       return;
     }
-    if (keyMatches(e, CONFIG.KEYS_UITGENOMEN)) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { inp.value = ''; command('UITGENOMEN'); } return; }
-    if (keyMatches(e, CONFIG.KEYS_VERZONDEN)) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { inp.value = ''; command('VERZONDEN'); } return; }
-    if (keyMatches(e, CONFIG.KEYS_KLAAR)) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { inp.value = ''; command('KLAAR'); } return; }
+    for (var k = 0; k < STATUSES.length; k++) {
+      if (keyMatches(e, STATUSES[k].keys)) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { inp.value = ''; chooseStatus(k); } return; }
+    }
     if (keyMatches(e, CONFIG.KEYS_ANNULEREN)) {
       e.preventDefault(); e.stopPropagation();
-      if (!e.repeat) { inp.value = ''; hideFlash(); command('ANNULEREN'); }
+      if (!e.repeat) { inp.value = ''; hideFlash(); cancelPallet(); }
       return;
     }
     if (e.key === 'Enter') { e.preventDefault(); if (!e.repeat) submitInput(); return; }
@@ -762,25 +763,33 @@ var CONFIG = {
   setInterval(keepFocus, 1000);
 
   // Knoppen op het scherm: focus niet wegnemen van het invoerveld.
-  function bindButton(id, fn) {
-    var el = $(id);
+  function bindButton(el, fn) {
+    if (typeof el === 'string') el = $(el);
     el.addEventListener('pointerdown', function (e) { e.preventDefault(); unlockAudio(); });
     el.addEventListener('click', function (e) { e.preventDefault(); fn(); keepFocus(); });
   }
-  bindButton('bUit', function () { inp.value = ''; command('UITGENOMEN'); });
-  bindButton('bVerz', function () { inp.value = ''; command('VERZONDEN'); });
-  bindButton('bKlaar', function () { inp.value = ''; command('KLAAR'); });
-  bindButton('bCancel', function () { inp.value = ''; hideFlash(); command('ANNULEREN'); });
+  // Eén knop per vaste bestemming, plus Annuleer.
+  function addActionButton(id, keyText, label, fn) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.id = id;
+    if (keyText) { var k = document.createElement('span'); k.className = 'k'; k.textContent = keyText; b.appendChild(k); }
+    b.appendChild(document.createTextNode(label));
+    $('actions').appendChild(b);
+    bindButton(b, fn);
+  }
+  STATUSES.forEach(function (st, i) {
+    addActionButton('bStatus' + i, st.keys && st.keys.length ? keyLabel(st.keys, '') : '', st.text, function () { inp.value = ''; chooseStatus(i); });
+  });
+  addActionButton('bCancel', keyLabel(CONFIG.KEYS_ANNULEREN, 'Esc'), 'Annuleer', function () { inp.value = ''; hideFlash(); cancelPallet(); });
+  // Smal scherm: drie knoppen per rij, Annuleer vult de rest van de laatste rij. Breed scherm: alles op één rij.
+  $('actions').style.setProperty('--n', String(STATUSES.length + 1));
+  $('actions').style.setProperty('--cancel-span', String(3 - (STATUSES.length % 3)));
   bindButton('kbd', function () { // schermtoetsenbord, voor testen op een smartphone
     var on = inp.getAttribute('inputmode') === 'none';
     inp.setAttribute('inputmode', on ? 'text' : 'none');
     $('kbd').classList.toggle('on', on);
     inp.blur(); // de blur-handler zet de focus terug, met het nieuwe toetsenbordgedrag
   });
-  $('kUit').textContent = keyLabel(CONFIG.KEYS_UITGENOMEN, 'F1');
-  $('kVerz').textContent = keyLabel(CONFIG.KEYS_VERZONDEN, 'F2');
-  $('kKlaar').textContent = keyLabel(CONFIG.KEYS_KLAAR, 'F3');
-  $('kCancel').textContent = keyLabel(CONFIG.KEYS_ANNULEREN, 'Esc');
 
   /* ------------------------------------------------------------------
      Instellingen per toestel
