@@ -14,7 +14,7 @@
    CONFIGURATIE – alle instelbare waarden staan hier samen.
    ====================================================================== */
 var CONFIG = {
-  APP_VERSION: "1.1.0",
+  APP_VERSION: "1.2.0",
 
   /* --- Verzenden ---------------------------------------------------- */
   // Web-app-adres van het Apps Script (eindigt op /exec).
@@ -26,15 +26,11 @@ var CONFIG = {
   SHARED_KEY: "",
 
   /* --- Locatie ------------------------------------------------------ */
-  // Prefix op de barcode van het rek. Wordt verwijderd vóór het wegschrijven.
-  LOCATION_PREFIX: "LOC",
-  // Hoe een geldige palletplaats eruitziet (na het verwijderen van de prefix).
+  // De barcode op het rek bevat alleen de palletplaats zelf, bv. A04. Dit
+  // patroon bepaalt wat als palletplaats aanvaard wordt, gescand of getypt.
   // Standaard één letter + twee cijfers, bv. A03 of D94. Bestaan alleen de
-  // rijen A tot D, dan vangt "^[A-D][0-9]{2}$" ook een typfout in de letter op.
+  // rijen A tot D, dan weigert "^[A-D][0-9]{2}$" ook een foute letter.
   LOCATION_PATTERN: "^[A-Z][0-9]{2}$",
-  // true: een getypte locatie zonder prefix (bv. "A03" + Enter) is toegestaan
-  // zolang ze op het patroon past. false: de prefix is altijd verplicht.
-  ALLOW_TYPED_LOCATION_WITHOUT_PREFIX: true,
 
   /* --- Toetsen ------------------------------------------------------ */
   // Elke waarde wordt vergeleken met key, code en keyCode van de toets.
@@ -267,9 +263,7 @@ var CONFIG = {
   var $ = function (id) { return document.getElementById(id); };
 
   var LOGIC_CFG = {
-    locationPrefix: CONFIG.LOCATION_PREFIX,
     locationPattern: CONFIG.LOCATION_PATTERN,
-    allowBareLocation: CONFIG.ALLOW_TYPED_LOCATION_WITHOUT_PREFIX,
     barcodeUitgenomen: CONFIG.BARCODE_UITGENOMEN,
     barcodeVerzonden: CONFIG.BARCODE_VERZONDEN,
     barcodeKlaar: CONFIG.BARCODE_KLAAR,

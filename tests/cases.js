@@ -86,67 +86,81 @@
     test('lege invoer -> fout', function () { eq(errCode(''), 'empty'); eq(errCode('   '), 'empty'); eq(errCode(null), 'empty'); });
 
     // ---------- Locatie ontleden ----------
-    test('locatie: prefix wordt verwijderd', function () { eq(loc('LOC3.12'), '3.12'); eq(loc('LOC12.05'), '12.05'); });
-    test('locatie: prefix in kleine letters', function () { eq(loc('loc3.12'), '3.12'); });
-    test('locatie: met ]C1 en witruimte', function () { eq(loc(']C1LOC3.12'), '3.12'); eq(loc(' LOC3.12\r'), '3.12'); });
-    test('locatie: resultaat is tekst en behoudt de nul achteraan', function () { eq(loc('LOC3.10'), '3.10'); eq(typeof loc('LOC3.10'), 'string'); });
-    test('locatie: getypt zonder prefix is toegestaan als het patroon klopt', function () { eq(loc('3.12'), '3.12'); eq(loc('12.05'), '12.05'); });
-    test('locatie: getypt zonder prefix kan uitgeschakeld worden', function () {
-      eq(errCode('3.12', { allowBareLocation: false }), 'unknown');
-      eq(loc('LOC3.12', { allowBareLocation: false }), '3.12');
+    // De barcode op het rek bevat alleen de palletplaats: één letter + twee cijfers (A03, B48, C13, D94).
+    test('locatie: letter + twee cijfers', function () { eq(loc('A03'), 'A03'); eq(loc('B48'), 'B48'); eq(loc('C13'), 'C13'); eq(loc('D94'), 'D94'); eq(loc('A04'), 'A04'); });
+    test('locatie: kleine letters worden hoofdletters', function () { eq(loc('a03'), 'A03'); eq(loc('d94'), 'D94'); });
+    test('locatie: met ]C0 / ]C1 en witruimte', function () { eq(loc(']C0A03'), 'A03'); eq(loc(']C1A03'), 'A03'); eq(loc(' A03\r'), 'A03'); eq(loc('A 03'), 'A03'); });
+    test('locatie: resultaat is tekst en behoudt de voorloopnul', function () { eq(typeof loc('A03'), 'string'); eq(loc('A00'), 'A00'); eq(loc('A04').length, 3); });
+    test('locatie: elke letter mag, ook L, O en C', function () { eq(loc('L07'), 'L07'); eq(loc('O15'), 'O15'); eq(loc('C13'), 'C13'); eq(loc('Z99'), 'Z99'); });
+    test('locatie: de oude barcode met LOC ervoor wordt niet meer aanvaard', function () {
+      eq(errCode('LOCA03'), 'unknown'); eq(errCode('LOC'), 'unknown'); eq(errCode('locA04'), 'unknown');
     });
-    test('locatie: prefix met ongeldig formaat -> fout', function () {
-      eq(errCode('LOC'), 'bad_location'); eq(errCode('LOC3.1'), 'bad_location'); eq(errCode('LOC3.123'), 'bad_location');
-      eq(errCode('LOC123.12'), 'bad_location'); eq(errCode('LOC3,12'), 'bad_location'); eq(errCode('LOCA.12'), 'bad_location');
-      eq(errCode('LOC' + A), 'bad_location');
-    });
-    test('locatie: zonder prefix en ongeldig formaat -> fout', function () {
-      eq(errCode('3.1'), 'unknown'); eq(errCode('3,12'), 'unknown'); eq(errCode('ABC'), 'unknown'); eq(errCode('312'), 'not_sscc');
+    test('locatie: ongeldig formaat -> fout', function () {
+      eq(errCode('A3'), 'unknown'); eq(errCode('A123'), 'unknown'); eq(errCode('AB3'), 'unknown'); eq(errCode('03A'), 'unknown');
+      eq(errCode('ABC'), 'unknown'); eq(errCode('A-03'), 'unknown'); eq(errCode('A.03'), 'unknown'); eq(errCode('3.12'), 'unknown');
+      eq(errCode('A03A03'), 'unknown'); eq(errCode('Ä03'), 'unknown'); eq(errCode('312'), 'not_sscc');
     });
     test('locatie: een SSCC wordt nooit als locatie gelezen en omgekeerd', function () {
-      eq(L.parseScan(A).type, 'sscc'); eq(L.parseScan('LOC3.12').type, 'location');
+      eq(L.parseScan(A).type, 'sscc'); eq(L.parseScan('00' + A).type, 'sscc'); eq(L.parseScan('A03').type, 'location');
+      eq(L.isValidSscc('A03'), false);
     });
-    test('locatie: andere prefix en ander patroon via configuratie', function () {
-      var cfg = { locationPrefix: 'P-', locationPattern: '^[A-Z]-[0-9]{2}-[0-9]$' };
-      eq(loc('P-A-01-2', cfg), 'A-01-2'); eq(loc('p-a-01-2', cfg), 'A-01-2'); eq(loc('A-01-2', cfg), 'A-01-2');
-      eq(errCode('LOC3.12', cfg), 'unknown');
+    test('locatie: een commando-barcode is geen locatie', function () { eq(L.parseScan('CMDUIT').type, 'command'); eq(errCode('CMD'), 'unknown'); });
+    test('locatie: patroon beperken tot de bestaande rijen (A tot D)', function () {
+      var cfg = { locationPattern: '^[A-D][0-9]{2}$' };
+      eq(loc('D94', cfg), 'D94'); eq(loc('a04', cfg), 'A04'); eq(errCode('E03', cfg), 'unknown');
     });
-    test('locatie: lege prefix steunt alleen op het patroon', function () {
-      var cfg = { locationPrefix: '' };
-      eq(loc('3.12', cfg), '3.12'); eq(sscc(A, cfg), A);
+    test('locatie: ander patroon via configuratie', function () {
+      var cfg = { locationPattern: '^[A-Z]-[0-9]{2}-[0-9]$' };
+      eq(loc('A-01-2', cfg), 'A-01-2'); eq(loc('a-01-2', cfg), 'A-01-2'); eq(errCode('A03', cfg), 'unknown');
+    });
+    test('locatie: het oude formaat X.XX kan via configuratie', function () {
+      var cfg = { locationPattern: '^[0-9]{1,2}\\.[0-9]{2}$' };
+      eq(loc('3.12', cfg), '3.12'); eq(loc('12.05', cfg), '12.05'); eq(errCode('A03', cfg), 'unknown');
+    });
+    test('locatie: een patroon met alleen cijfers botst niet met een SSCC', function () {
+      var cfg = { locationPattern: '^[0-9]{3}$' };
+      eq(loc('312', cfg), '312'); eq(sscc(A, cfg), A); eq(sscc('00' + A, cfg), A); eq(errCode('3120', cfg), 'not_sscc');
     });
 
     // ---------- Commando-barcodes ----------
     test('commando-barcodes', function () {
       eq(L.parseScan('CMDUIT'), { type: 'command', command: 'UITGENOMEN' });
       eq(L.parseScan('cmdverz'), { type: 'command', command: 'VERZONDEN' });
+      eq(L.parseScan('CMDKLAAR'), { type: 'command', command: 'KLAAR' });
       eq(L.parseScan(']C1CMDESC'), { type: 'command', command: 'ANNULEREN' });
+    });
+    test('commando-barcode uitgeschakeld (leeg) wordt niet herkend', function () {
+      eq(errCode('CMDKLAAR', { barcodeKlaar: '' }), 'unknown');
     });
 
     // ---------- Scanflow ----------
     function step(open, raw) { return L.decide(open, L.parseScan(raw)); }
     test('flow: SSCC zonder open pallet opent de pallet', function () { eq(step(null, '00' + A), { do: 'open', sscc: A }); });
-    test('flow: locatie met open pallet schrijft weg', function () { eq(step(A, 'LOC3.12'), { do: 'write', sscc: A, target: '3.12' }); });
-    test('flow: F1 / F2 met open pallet', function () {
+    test('flow: locatie met open pallet schrijft weg', function () { eq(step(A, 'A03'), { do: 'write', sscc: A, target: 'A03' }); eq(step(A, 'a04'), { do: 'write', sscc: A, target: 'A04' }); });
+    test('flow: F1 / F2 / F3 met open pallet', function () {
       eq(L.decide(A, { type: 'command', command: 'UITGENOMEN' }), { do: 'write', sscc: A, target: 'Uitgenomen' });
       eq(L.decide(A, { type: 'command', command: 'VERZONDEN' }), { do: 'write', sscc: A, target: 'Verzonden' });
+      eq(L.decide(A, { type: 'command', command: 'KLAAR' }), { do: 'write', sscc: A, target: 'Klaar' });
     });
+    test('flow: commando-barcode Klaar met open pallet', function () { eq(step(A, 'CMDKLAAR'), { do: 'write', sscc: A, target: 'Klaar' }); });
     test('flow: Esc met open pallet annuleert, zonder open pallet gebeurt niets', function () {
       eq(L.decide(A, { type: 'command', command: 'ANNULEREN' }), { do: 'cancel', sscc: A });
       eq(L.decide(null, { type: 'command', command: 'ANNULEREN' }), { do: 'ignore' });
     });
     test('flow: tweede SSCC met open pallet wordt geblokkeerd', function () { eq(step(A, C).do, 'error'); });
     test('flow: dezelfde SSCC opnieuw scannen doet niets', function () { eq(step(A, '00' + A), { do: 'ignore' }); });
-    test('flow: locatie zonder open pallet -> fout', function () { eq(step(null, 'LOC3.12').do, 'error'); eq(step(null, '3.12').do, 'error'); });
-    test('flow: F1 / F2 zonder open pallet -> fout', function () {
+    test('flow: locatie zonder open pallet -> fout', function () { eq(step(null, 'A03').do, 'error'); eq(step(null, 'd94').do, 'error'); });
+    test('flow: F1 / F2 / F3 zonder open pallet -> fout', function () {
       eq(L.decide(null, { type: 'command', command: 'UITGENOMEN' }).do, 'error');
       eq(L.decide(null, { type: 'command', command: 'VERZONDEN' }).do, 'error');
+      eq(L.decide(null, { type: 'command', command: 'KLAAR' }).do, 'error');
     });
     test('flow: ongeldige scan is altijd een fout, met of zonder open pallet', function () {
-      eq(step(null, '340123451234567890').do, 'error'); eq(step(A, '5412345678908').do, 'error'); eq(step(A, 'LOC99.999').do, 'error');
+      eq(step(null, '340123451234567890').do, 'error'); eq(step(A, '5412345678908').do, 'error'); eq(step(A, 'A3').do, 'error'); eq(step(A, 'LOCA03').do, 'error');
     });
     test('flow: statusteksten instelbaar', function () {
       eq(L.decide(A, { type: 'command', command: 'VERZONDEN' }, { textVerzonden: 'Weg' }).target, 'Weg');
+      eq(L.decide(A, { type: 'command', command: 'KLAAR' }, { textKlaar: 'Gereed' }).target, 'Gereed');
     });
 
     return results;

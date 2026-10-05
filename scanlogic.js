@@ -11,9 +11,7 @@
   'use strict';
 
   var DEFAULTS = {
-    locationPrefix: 'LOC',
     locationPattern: '^[A-Z][0-9]{2}$',          // één letter + twee cijfers, bv. A03
-    allowBareLocation: true,
     barcodeUitgenomen: 'CMDUIT',
     barcodeVerzonden: 'CMDVERZ',
     barcodeKlaar: 'CMDKLAAR',
@@ -83,15 +81,7 @@
 
     var pattern = new RegExp(c.locationPattern);
 
-    // 2. Locatie met prefix (de barcode op het rek)
-    var prefix = String(c.locationPrefix || '').toUpperCase();
-    if (prefix && upper.indexOf(prefix) === 0) {
-      var loc = upper.slice(prefix.length);
-      if (!pattern.test(loc)) return err('bad_location', 'Ongeldige locatie', 'Gelezen: ' + shown);
-      return { type: 'location', location: loc };
-    }
-
-    // 3. SSCC: "(00)" + 18 cijfers, "00" + 18 cijfers, of 18 cijfers
+    // 2. SSCC: "(00)" + 18 cijfers, "00" + 18 cijfers, of 18 cijfers
     var paren = /^\(00\)([0-9]*)$/.exec(s);
     var digits = null;
     if (paren) {
@@ -100,7 +90,7 @@
     } else if (/^[0-9]+$/.test(s)) {
       if (s.length === 20 && s.slice(0, 2) === '00') digits = s.slice(2);
       else if (s.length === 18) digits = s;
-      else if (!(c.allowBareLocation && pattern.test(upper))) {
+      else if (!pattern.test(upper)) {
         return err('not_sscc', 'Geen SSCC', 'Gelezen: ' + s.length + ' cijfers. Scan de barcode met (00).');
       }
     }
@@ -109,8 +99,9 @@
       return { type: 'sscc', sscc: digits };
     }
 
-    // 4. Getypte locatie zonder prefix (alleen als ze op het locatiepatroon past)
-    if (c.allowBareLocation && pattern.test(upper)) return { type: 'location', location: upper };
+    // 3. Locatie: de barcode op het rek (of de getypte invoer) is de palletplaats
+    //    zelf. Ze moet exact op het locatiepatroon passen.
+    if (pattern.test(upper)) return { type: 'location', location: upper };
 
     return err('unknown', 'Onbekende barcode', 'Gelezen: ' + shown);
   }
