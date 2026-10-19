@@ -124,12 +124,16 @@ De rechterkolom bevat de risico's van de aankoop zelf. Vraag de leverancier daar
 Het toestel in gebruik is de Keyence BT-A600. De scanner moet de gelezen tekst als toetsaanslagen doorgeven, gevolgd door Enter. Alles staat in de app **Instellingen** onder **Scanner**. De namen komen uit de FAQ van Keyence voor de Android-toestellen en kunnen op de BT-A600 licht afwijken.
 
 1. **Scanner > Data output > Terminator**: Enter. Zo volgt na elke scan een Enter.
-2. **Scanner > Data output**: de gescande tekst moet als toetsenbordinvoer naar de actieve app gaan. Staat er een keuze zoals "Key event", "Keyboard" of "Key input", kies die.
+2. **Scanner > Data output > Transmission type**: KeyEvent. Dan stuurt de scanner elk teken als een toetsaanslag, en werkt de app zonder schermtoetsenbord. Op de andere stand voegt de scanner zijn tekst in via het schermtoetsenbord (de IME van Android): dan komt de scan alleen aan als het schermtoetsenbord actief is, en lijkt het alsof de scanner niets doet.
 3. **Scanner > Aimer > Center point reading**: Always enable. Dan leest hij alleen de barcode onder de laserpointer, en niet die van de pallet ernaast. Staat het niet onder Aimer, kijk dan onder Target.
 4. **Scanner > Code param**: Code 128 en GS1-128 aan; EAN en UPC uit als dat kan. Dan kan de scanner minder verkeerde barcodes lezen.
 5. **Test**: open Palletscan, tik in het invoerveld onderaan en scan Pallet A van `testbarcodes.html`. Het scherm moet geel worden. Komt de tekst wel in het veld maar gebeurt er niets, dan staat de Terminator niet op Enter. Komt er niets, dan staat de uitvoer niet op toetsenbordinvoer.
 
 **Toetsen:** op de BT-A600 komen F1 tot F8 en Esc zuiver door in Chrome (gecontroleerd met ⚙ > Toetstest). De standaardtoetsen uit het configuratieblok werken dus zonder aanpassing.
+
+**Schermtoetsenbord:** verschijnt het schermtoetsenbord bij het openen van de app, zet het dan uit in de Android-instellingen: **Instellingen > Systeem > Toetsenbord > Fysiek toetsenbord > Schermtoetsenbord gebruiken** uit (de naam kan per Android-versie verschillen; het gaat om de optie die het schermtoetsenbord toont terwijl er een fysiek toetsenbord is). Helpt dat niet, zet dan `FOCUS_INPUT` in het configuratieblok van `index.html` op `false`: het invoerveld krijgt dan geen focus meer en de toetsen worden op paginaniveau opgevangen. Dat werkt alleen als de scanner zijn tekst als toetsaanslagen stuurt; test het met Pallet A van `testbarcodes.html`.
+
+**Scan komt alleen aan met het schermtoetsenbord open:** dan voegt de scanner zijn tekst in via het schermtoetsenbord in plaats van als toetsaanslagen. De juiste oplossing is **Transmission type = KeyEvent** (stap 2 hierboven). Bestaat die keuze niet op het toestel, zet dan `INPUT_MODE` in het configuratieblok op `"text"`: het invoerveld houdt dan een actief toetsenbord, waardoor de ingevoegde tekst wél aankomt. Verberg daarna het schermtoetsenbord zelf met de Android-instelling hierboven. `FOCUS_INPUT: false` helpt in dit geval niet, want zonder focus is er geen toetsenbord om in te voegen.
 
 De instellingen van het toestel onderaan de volgende sectie (datum en tijd, schermtime-out, browsegegevens) gelden ook voor de Keyence.
 
@@ -285,6 +289,16 @@ Het getal naast **WACHTRIJ** bovenaan is het aantal scans dat nog niet in de She
 Het toestel haalt bij elke start met wifi alle bestanden van de app samen op en vervangt de oude alleen als ze allemaal binnen zijn. Een toestel draait dus nooit een half bijgewerkte app.
 
 ## Wijzigingen
+
+### Versie 1.4.2
+
+- Nieuwe instelling `INPUT_MODE` in het configuratieblok: `"none"` (standaard, geen schermtoetsenbord) of `"text"` (actief toetsenbord op het invoerveld, voor een scanner die zijn tekst via het schermtoetsenbord invoegt). De ⌨-knop wisselt tijdelijk tussen beide.
+- README: Keyence Data output > Transmission type = KeyEvent, en wat te doen als de scan alleen aankomt met het schermtoetsenbord open.
+
+### Versie 1.4.1
+
+- Nieuwe instelling `FOCUS_INPUT` in het configuratieblok. Op `false` krijgt het invoerveld geen focus, zodat een schermtoetsenbord dat steeds verschijnt wegblijft. Standaard `true`, dus zonder aanpassing verandert er niets.
+- README: scannerinstellingen voor de Keyence BT-A600.
 
 ### Versie 1.4.0
 

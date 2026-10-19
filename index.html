@@ -14,7 +14,7 @@
    CONFIGURATIE – alle instelbare waarden staan hier samen.
    ====================================================================== */
 var CONFIG = {
-  APP_VERSION: "1.4.0",
+  APP_VERSION: "1.4.2",
 
   /* --- Verzenden ---------------------------------------------------- */
   // Web-app-adres van het Apps Script (eindigt op /exec).
@@ -61,6 +61,17 @@ var CONFIG = {
   SEND_TIMEOUT_MS: 20000,    // na deze tijd geldt een verzending als mislukt
   RETRY_MIN_MS: 2000,        // eerste wachttijd na een mislukte verzending
   RETRY_MAX_MS: 30000,       // langste wachttijd tussen twee pogingen
+  // true: het invoerveld houdt altijd de focus (nodig als de scanner zijn tekst
+  // als één string aanlevert). false: het veld krijgt geen focus en de toetsen
+  // worden op paginaniveau opgevangen; gebruik dit als het schermtoetsenbord
+  // blijft verschijnen. Vereist dat de scanner tekens als toetsaanslagen stuurt.
+  FOCUS_INPUT: true,
+  // "none": geen schermtoetsenbord; werkt als de scanner toetsaanslagen stuurt
+  // (Keyence: Data output > Transmission type = KeyEvent). "text": het
+  // invoerveld houdt een actief toetsenbord (IME); nodig als de scanner zijn
+  // tekst via het schermtoetsenbord invoegt. Verberg dan het schermtoetsenbord
+  // in Android (zie README). De ⌨-knop wisselt tijdelijk tussen beide.
+  INPUT_MODE: "none",
   SOUND: true,
   SOUND_VOLUME: 0.8,         // 0 tot 1
   VIBRATE: true
@@ -718,6 +729,7 @@ var CONFIG = {
   function submitInput() {
     var v = inp.value;
     inp.value = '';
+    if (!CONFIG.FOCUS_INPUT && !manualKeyboard && document.activeElement === inp) inp.blur();
     handleInput(v);
   }
 
@@ -754,8 +766,10 @@ var CONFIG = {
   $('f').addEventListener('submit', function (e) { e.preventDefault(); if (!dlgOpen) submitInput(); });
   inp.addEventListener('input', function () { if ($('flash').className === 'err') hideFlash(); });
 
+  var manualKeyboard = false; // ⌨ aangezet: dan altijd focus, ook met FOCUS_INPUT false
   function keepFocus() {
     if (dlgOpen) return;
+    if (!CONFIG.FOCUS_INPUT && !manualKeyboard) return;
     if (document.activeElement !== inp) { try { inp.focus({ preventScroll: true }); } catch (e) { inp.focus(); } }
   }
   inp.addEventListener('blur', function () { setTimeout(keepFocus, 0); });
@@ -785,12 +799,16 @@ var CONFIG = {
   // Smal scherm: drie knoppen per rij, Annuleer vult de rest van de laatste rij. Breed scherm: alles op één rij.
   $('actions').style.setProperty('--n', String(STATUSES.length + 1));
   $('actions').style.setProperty('--cancel-span', String(3 - (STATUSES.length % 3)));
-  bindButton('kbd', function () { // schermtoetsenbord, voor testen op een smartphone
-    var on = inp.getAttribute('inputmode') === 'none';
-    inp.setAttribute('inputmode', on ? 'text' : 'none');
-    $('kbd').classList.toggle('on', on);
+  // inputmode "text": actief toetsenbord (IME) op het veld, dan altijd focus.
+  // inputmode "none": geen schermtoetsenbord; de scanner moet toetsaanslagen sturen.
+  function setInputMode(text) {
+    inp.setAttribute('inputmode', text ? 'text' : 'none');
+    $('kbd').classList.toggle('on', text);
+    manualKeyboard = text;
     inp.blur(); // de blur-handler zet de focus terug, met het nieuwe toetsenbordgedrag
-  });
+  }
+  setInputMode(CONFIG.INPUT_MODE === 'text');
+  bindButton('kbd', function () { setInputMode(inp.getAttribute('inputmode') === 'none'); });
 
   /* ------------------------------------------------------------------
      Instellingen per toestel
