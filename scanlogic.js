@@ -15,8 +15,8 @@
     // Vaste bestemmingen. "text" komt in kolom C; "barcode" is de
     // commando-barcode als reserve voor de sneltoets (leeg = geen).
     statuses: [
+      { text: 'Klaar', barcode: 'CMDKLAAR' },
       { text: 'Uitgenomen', barcode: 'CMDUIT' },
-      { text: 'Verzonden', barcode: 'CMDVERZ' },
       { text: 'TEE', barcode: 'CMDTEE' },
       { text: 'Gang 1', barcode: 'CMDGANG1' },
       { text: 'Gang 2', barcode: 'CMDGANG2' }

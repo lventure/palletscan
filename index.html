@@ -14,7 +14,7 @@
    CONFIGURATIE – alle instelbare waarden staan hier samen.
    ====================================================================== */
 var CONFIG = {
-  APP_VERSION: "1.4.4",
+  APP_VERSION: "1.5.0",
 
   /* --- Verzenden ---------------------------------------------------- */
   // Web-app-adres van het Apps Script (eindigt op /exec).
@@ -44,15 +44,15 @@ var CONFIG = {
   //   barcode: commando-barcode als reserve voor de toets. Druk ze af en kleef
   //            ze op de heftruck. Leeg ("") = geen.
   STATUSES: [
-    { text: "Uitgenomen", keys: ["F1"], barcode: "CMDUIT" },
-    { text: "Verzonden",  keys: ["F2"], barcode: "CMDVERZ" },
+    { text: "Klaar",      keys: ["F1"], barcode: "CMDKLAAR" },
+    { text: "Uitgenomen", keys: ["F2"], barcode: "CMDUIT" },
     { text: "TEE",        keys: ["F3"], barcode: "CMDTEE" },
     { text: "Gang 1",     keys: ["F4"], barcode: "CMDGANG1" },
     { text: "Gang 2",     keys: ["F5"], barcode: "CMDGANG2" }
   ],
 
   /* --- Annuleren ------------------------------------------------------ */
-  KEYS_ANNULEREN: ["Escape"],
+  KEYS_ANNULEREN: ["F8"],       // Esc niet: Android geeft Esc door als "Terug" en sluit dan de app
   BARCODE_ANNULEREN: "CMDESC",
 
   /* --- Gedrag --------------------------------------------------------- */
@@ -67,9 +67,10 @@ var CONFIG = {
   // tik op het veld. true: het veld houdt altijd de focus; nodig als de
   // scanner zijn tekst in het veld invoegt in plaats van toetsen te sturen.
   FOCUS_INPUT: false,
-  // true: de terugknop van Android (en Esc, die Android als "Terug" doorgeeft)
-  // annuleert de open pallet in plaats van de app te sluiten.
-  BACK_IS_CANCEL: true,
+  // true: de terugknop van Android annuleert de open pallet in plaats van de
+  // app te sluiten. Op de Keyence BT-A600 bleek dit niet te werken (Esc sloot
+  // de app toch), vandaar standaard uit en Annuleer op F8.
+  BACK_IS_CANCEL: false,
   // "none": geen schermtoetsenbord; werkt als de scanner toetsaanslagen stuurt
   // (Keyence: Data output > Transmission type = KeyEvent). "text": het
   // invoerveld houdt een actief toetsenbord (IME); nodig als de scanner zijn
@@ -822,7 +823,7 @@ var CONFIG = {
   STATUSES.forEach(function (st, i) {
     addActionButton('bStatus' + i, st.keys && st.keys.length ? keyLabel(st.keys, '') : '', st.text, function () { inp.value = ''; chooseStatus(i); });
   });
-  addActionButton('bCancel', keyLabel(CONFIG.KEYS_ANNULEREN, 'Esc'), 'Annuleer', function () { inp.value = ''; hideFlash(); cancelPallet(); });
+  addActionButton('bCancel', keyLabel(CONFIG.KEYS_ANNULEREN, 'F8'), 'Annuleer', function () { inp.value = ''; hideFlash(); cancelPallet(); });
   // Smal scherm: drie knoppen per rij, Annuleer vult de rest van de laatste rij. Breed scherm: alles op één rij.
   $('actions').style.setProperty('--n', String(STATUSES.length + 1));
   $('actions').style.setProperty('--cancel-span', String(3 - (STATUSES.length % 3)));

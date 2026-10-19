@@ -2,7 +2,7 @@
 
 Minimale scan-webapp voor het magazijn. Elke scan wordt één nieuwe rij in het tabblad **Scans** van de Google Sheet. Geen stockbeheer, geen login, geen dashboard.
 
-Scanflow: pallet-SSCC scannen, daarna de locatiebarcode scannen (of F1 = Uitgenomen, F2 = Verzonden, F3 = TEE, F4 = Gang 1, F5 = Gang 2, Esc = annuleren). De rij wordt eerst op het toestel bewaard en daarna verzonden. Lukt verzenden niet, dan blijft de app het opnieuw proberen.
+Scanflow: pallet-SSCC scannen, daarna de locatiebarcode scannen (of F1 = Klaar, F2 = Uitgenomen, F3 = TEE, F4 = Gang 1, F5 = Gang 2, F8 = annuleren). De rij wordt eerst op het toestel bewaard en daarna verzonden. Lukt verzenden niet, dan blijft de app het opnieuw proberen.
 
 ## Bestanden
 
@@ -88,14 +88,14 @@ Neem bij voorkeur een Android-smartphone met Chrome: dat is dezelfde browser als
 3. Tik op **⌨** naast het invoerveld. De knop wordt geel. Tik op het invoerveld als het schermtoetsenbord niet vanzelf verschijnt.
 4. Typ `340123451234567895` en druk op Enter. Het scherm wordt geel en toont het nummer. Dit is Pallet A van `testbarcodes.html`.
 5. Typ `A03` en druk op Enter. Het scherm wordt groen. Controleer in de Sheet dat er een rij bij is met de juiste datum, SSCC en plaats.
-6. Typ `354123450000000014` en Enter, en tik op de knop **Uitgenomen**. Doe hetzelfde met **Verzonden**, **TEE**, **Gang 1**, **Gang 2** en **Annuleer**. Bij Annuleer mag er geen rij bijkomen.
+6. Typ `354123450000000014` en Enter, en tik op de knop **Klaar**. Doe hetzelfde met **Uitgenomen**, **TEE**, **Gang 1**, **Gang 2** en **Annuleer**. Bij Annuleer mag er geen rij bijkomen.
 7. Typ `340123451234567890` en Enter. Het scherm wordt rood met "controlecijfer fout".
 8. Typ `A03` en Enter zonder open pallet. Het scherm wordt rood met "Eerst pallet scannen".
 9. Zet de smartphone in vliegtuigmodus en doe twee volledige scans. **WACHTRIJ 2** is oranje. Sluit Chrome volledig en open de app opnieuw: de wachtrij staat nog op 2. Zet vliegtuigmodus uit: binnen een halve minuut staat de wachtrij op 0 en staan beide rijen één keer in de Sheet.
 10. Zet de app op het startscherm (stap 5 hierboven) en start ze in vliegtuigmodus.
 11. Loop met de smartphone naar de plek in het magazijn met de zwakste wifi en doe daar een paar scans.
 
-Uit `TESTLIJST.md` kun je zo de stappen 1 tot 15, 17, 18 en 21 tot 26 aflopen. Gebruik de knoppen op het scherm waar de lijst F1 tot F5 of Esc zegt.
+Uit `TESTLIJST.md` kun je zo de stappen 1 tot 15, 17, 18 en 21 tot 26 aflopen. Gebruik de knoppen op het scherm waar de lijst F1 tot F5 of F8 zegt.
 
 Verwijder na de test de testrijen uit het tabblad Scans.
 
@@ -105,13 +105,13 @@ Typen test de app, maar niet het scannen. Dat kan op drie manieren, van meest na
 
 - **Een USB- of Bluetooth-handscanner** aan een pc of smartphone. Zo'n scanner werkt als toetsenbord, net als de Zebra: hij typt de barcode en drukt op Enter. Ligt er ergens in het bedrijf één, gebruik die. Stuurt hij geen Enter mee, stel dan in de handleiding van de scanner het achtervoegsel "Enter" of "CR" in. Scan hiermee de afgedrukte `testbarcodes.html` en een echt palletlabel.
 - **Een toetsenbord-app met camerascanner** op een Android-smartphone. Zoek in Google Play op "barcode scanner keyboard"; voorbeelden zijn "Barcode Keyboard: Scan & Type" en "Barcode & QR code Keyboard". Zo'n app typt de gescande barcode in het invoerveld. Zet in die app "Enter na scan" aan, of tik zelf op Enter. Kies dat toetsenbord in Android en tik in Palletscan op **⌨**. Deze apps zijn niet getest met Palletscan.
-- **Een Bluetooth-toetsenbord** gekoppeld aan een Android-smartphone. Daarmee test je F1 tot F5 en Esc: open ⚙ en kijk bij **Toetstest** wat elke toets doorstuurt, en probeer ze daarna in de scanflow. Dit toont hoe Chrome op Android met die toetsen omgaat. De Zebra kan er nog van afwijken.
+- **Een Bluetooth-toetsenbord** gekoppeld aan een Android-smartphone. Daarmee test je F1 tot F5 en F8: open ⚙ en kijk bij **Toetstest** wat elke toets doorstuurt, en probeer ze daarna in de scanflow. Dit toont hoe Chrome op Android met die toetsen omgaat. De Zebra kan er nog van afwijken.
 
 ### Wat deze test wel en niet zegt
 
 | Getest met smartphone of pc | Alleen te testen met de Zebra zelf |
 |---|---|
-| Het Apps Script schrijft juist in de Sheet | Komen F1 tot F5 en Esc door in Chrome op dit toestel |
+| Het Apps Script schrijft juist in de Sheet | Komen F1 tot F5 en F8 door in Chrome op dit toestel |
 | De scanflow en alle foutmeldingen | DataWedge levert de tekens juist en in volgorde aan |
 | De wachtrij bij wifi-uitval en na een herstart | Leesafstand vanop de heftruck |
 | Starten zonder wifi vanaf het startscherm | Lezen door wikkelfolie |
@@ -131,7 +131,7 @@ Het toestel in gebruik is de Keyence BT-A600. De scanner moet de gelezen tekst a
 
 **Toetsen:** op de BT-A600 komen F1 tot F8 en Esc zuiver door in Chrome (gecontroleerd met ⚙ > Toetstest). De standaardtoetsen uit het configuratieblok werken dus zonder aanpassing.
 
-**Esc sluit de app:** Android geeft Esc op een fysiek toetsenbord ook door als "Terug", en in een app op het startscherm sluit Terug de app. Sinds versie 1.4.4 vangt de app dat op (`BACK_IS_CANCEL: true`): Terug en Esc annuleren de open pallet, en de app blijft open. Wil je de app toch sluiten, gebruik dan de thuisknop of het overzicht van open apps. Sluit Esc de app toch nog (versie 1.4.4 of hoger onderaan het scherm), kies dan een andere toets voor Annuleer: zet `KEYS_ANNULEREN` in het configuratieblok op `["F8"]` (F6, F7 en F8 zijn vrij op de BT-A600). De knop Annuleer op het scherm toont dan F8.
+**Esc sluit de app:** Android geeft Esc op een fysiek toetsenbord door als "Terug", en in een app op het startscherm sluit Terug de app. De opvang in de app (`BACK_IS_CANCEL`) hielp op de BT-A600 niet. Daarom staat Annuleer sinds versie 1.4.5 op **F8**; druk dus geen Esc in de app. Wil je het toch proberen: `BACK_IS_CANCEL: true` en `KEYS_ANNULEREN: ["Escape"]` in het configuratieblok.
 
 **Schermtoetsenbord:** sinds versie 1.4.3 staat `FOCUS_INPUT` standaard op `false`: het invoerveld heeft geen focus, de toetsaanslagen van de scanner worden op paginaniveau opgevangen, en Android heeft dus geen reden om een schermtoetsenbord te openen, ook niet na een scan. Typen kan nog altijd door op het veld te tikken; na Enter laat de app het veld weer los. Verschijnt het schermtoetsenbord toch, zet het dan uit in de Android-instellingen: **Instellingen > Systeem > Toetsenbord > Fysiek toetsenbord > Schermtoetsenbord gebruiken** uit (de naam kan per Android-versie verschillen; het gaat om de optie die het schermtoetsenbord toont terwijl er een fysiek toetsenbord is).
 
@@ -177,8 +177,8 @@ De vaste bestemmingen staan als één lijst in het configuratieblok bovenaan `in
 
 ```
 STATUSES: [
-  { text: "Uitgenomen", keys: ["F1"], barcode: "CMDUIT" },
-  { text: "Verzonden",  keys: ["F2"], barcode: "CMDVERZ" },
+  { text: "Klaar",      keys: ["F1"], barcode: "CMDKLAAR" },
+  { text: "Uitgenomen", keys: ["F2"], barcode: "CMDUIT" },
   { text: "TEE",        keys: ["F3"], barcode: "CMDTEE" },
   { text: "Gang 1",     keys: ["F4"], barcode: "CMDGANG1" },
   { text: "Gang 2",     keys: ["F5"], barcode: "CMDGANG2" }
@@ -187,17 +187,17 @@ STATUSES: [
 
 Elke regel is één bestemming: `text` komt in kolom C, `keys` is de sneltoets en `barcode` de commando-barcode. Wil je een bestemming toevoegen, hernoemen of weghalen, pas dan alleen deze lijst aan. De knop op het scherm en de sneltoets volgen vanzelf. De knoppen staan in de volgorde van de lijst, drie per rij op een smal scherm, met Annuleer als laatste. Gebruik in `text` alleen letters, cijfers, spaties, punten en streepjes; anders weigert het Apps Script de scan.
 
-De toets voor annuleren staat eronder in `KEYS_ANNULEREN` (standaard Escape).
+De toets voor annuleren staat eronder in `KEYS_ANNULEREN` (standaard F8).
 
 Wat een toets op het toestel echt doorstuurt, zie je in **⚙ > Toetstest**: druk op de toets en lees de waarde achter `key` of `code`. Zet die waarde in het configuratieblok.
 
-Op Android kan Esc door het systeem als "Terug" behandeld worden. Dan sluit de app in plaats van te annuleren. Test dat als eerste, en kies zo nodig een andere toets voor annuleren.
+Esc is bewust niet de toets voor annuleren: Android behandelt Esc op een fysiek toetsenbord als "Terug", en in een app op het startscherm sluit dat de app. Op de Keyence BT-A600 is dat zo gebleken, ook met de opvang via `BACK_IS_CANCEL`. Daarom staat Annuleer op F8.
 
 Komt een toets helemaal niet door in Chrome, of doet ze iets anders, dan zijn er drie uitwegen:
 
 1. Een andere toets kiezen die wel doorkomt en die in het configuratieblok zetten.
 2. De toets op het toestel zelf anders laten instellen: op de Keyence via de instelbare toetsen (vraag de Keyence-engineer), op een Zebra via **Instellingen > Key Programmer**.
-3. De commando-barcodes `CMDUIT`, `CMDVERZ`, `CMDTEE`, `CMDGANG1`, `CMDGANG2` en `CMDESC` afdrukken (ze staan op `testbarcodes.html`) en op de heftruck kleven. Die werken zoals F1 tot F5 en Esc en vragen geen toets.
+3. De commando-barcodes `CMDKLAAR`, `CMDUIT`, `CMDTEE`, `CMDGANG1`, `CMDGANG2` en `CMDESC` afdrukken (ze staan op `testbarcodes.html`) en op de heftruck kleven. Die werken zoals F1 tot F5 en F8 en vragen geen toets.
 
 De knoppen op het scherm werken altijd.
 
@@ -222,7 +222,7 @@ Een locatie met de hand typen vraagt een letter. Op de Keyence BT-A600 kan dat r
 |---|---|
 | A | Datum en uur van de scan op het toestel, als echte datum-tijdwaarde in Belgische tijd |
 | B | Pallet-SSCC, 18 cijfers, als tekst |
-| C | Palletplaats (bijvoorbeeld `A03`), of een vaste bestemming: `Uitgenomen`, `Verzonden`, `TEE`, `Gang 1` of `Gang 2`, als tekst |
+| C | Palletplaats (bijvoorbeeld `A03`), of een vaste bestemming: `Klaar`, `Uitgenomen`, `TEE`, `Gang 1` of `Gang 2`, als tekst |
 | D | ScanID, alleen om dubbele rijen te vermijden |
 | E | Toestelnaam |
 | F | Tijdstip waarop Google de rij ontving |
@@ -246,7 +246,7 @@ Afspraken voor het tabblad Scans:
 6. **Dezelfde SSCC twee keer na elkaar** scannen is geen fout: de pallet blijft open. Alleen een andere SSCC wordt geblokkeerd.
 7. **Dubbele lezing van een rek-etiket** binnen 1,5 seconde na het wegschrijven wordt genegeerd. Zonder die regel geeft elke dubbele lezing een rode fout vlak na een groene bevestiging.
 8. **Open pallet** wordt niet bewaard bij een herlaadde pagina. Er is dan nog niets geschreven; scan de pallet opnieuw.
-9. **Esc** zonder open pallet doet niets, behalve een foutmelding wegnemen.
+9. **F8** (Annuleer) zonder open pallet doet niets, behalve een foutmelding wegnemen.
 10. **Kolommen E en F** zijn toegevoegd aan de spec, zoals afgesproken.
 11. **Dubbele rijen**: het script vergelijkt de ScanID met de laatste 5000 rijen. Een herhaalde verzending van een scan die meer dan 5000 rijen geleden al geschreven werd, zou dubbel komen. Dat vraagt een toestel dat dagenlang offline was én een verloren antwoord.
 12. **Toegang**: de web-app staat op "Iedereen" en is beveiligd met de gedeelde sleutel. De sleutel houdt toevallige bezoekers en bots tegen. Wie de sleutel kent kan rijen toevoegen, maar niets lezen, wijzigen of verwijderen.
@@ -255,7 +255,7 @@ Afspraken voor het tabblad Scans:
 15. **Commando-barcodes** zijn toegevoegd als reserve voor de functietoetsen. Ze stonden niet in de spec.
 16. **Toegelaten tekens in kolom C**: het script aanvaardt alleen letters, cijfers, spatie, punt, streepjes en schuine streep, en het eerste teken moet een letter of cijfer zijn. Zo kan er nooit een formule in de Sheet komen. Kies je later een locatieformaat met andere tekens, pas dan `LOC_ALLOWED` in `Code.gs` mee aan. Anders worden die scans geweigerd.
 17. **Een tweede druk op een sneltoets** binnen 1,5 seconde na het wegschrijven wordt genegeerd, net als een dubbele lezing van een rek-etiket.
-18. **Vaste bestemmingen** (`Uitgenomen`, `Verzonden`, `TEE`, `Gang 1`, `Gang 2`) werken allemaal op dezelfde manier: pallet scannen, sneltoets drukken, en kolom C krijgt de naam. De naam zelf scannen of typen werkt ook: `TEE` + Enter, of een barcode met `TEE` erin.
+18. **Vaste bestemmingen** (`Klaar`, `Uitgenomen`, `TEE`, `Gang 1`, `Gang 2`) werken allemaal op dezelfde manier: pallet scannen, sneltoets drukken, en kolom C krijgt de naam. De naam zelf scannen of typen werkt ook: `TEE` + Enter, of een barcode met `TEE` erin.
 
 ## Betrouwbaarheid: wat de app wel en niet opvangt
 
@@ -291,6 +291,14 @@ Het getal naast **WACHTRIJ** bovenaan is het aantal scans dat nog niet in de She
 Het toestel haalt bij elke start met wifi alle bestanden van de app samen op en vervangt de oude alleen als ze allemaal binnen zijn. Een toestel draait dus nooit een half bijgewerkte app.
 
 ## Wijzigingen
+
+### Versie 1.5.0
+
+- Sneltoetsen: F1 is nu **Klaar** (commando-barcode `CMDKLAAR`), F2 is **Uitgenomen** (`CMDUIT`). De bestemming Verzonden en de barcode `CMDVERZ` vervallen. `testbarcodes.html` opnieuw afdrukken.
+
+### Versie 1.4.5
+
+- Annuleer staat nu op **F8** in plaats van Esc. Op de Keyence BT-A600 sluit Esc de app, ook met de opvang van versie 1.4.4; `BACK_IS_CANCEL` staat daarom standaard uit.
 
 ### Versie 1.4.4
 
@@ -361,7 +369,7 @@ Zonder Node.js: upload de map `tests` mee en open `https://<gebruikersnaam>.gith
 
 ## Wat getest is en wat niet
 
-Getest in een geautomatiseerde browser (Chromium, schermgrootte van de MC3400): de volledige scanflow, alle foutgevallen, F1 tot F5 en Esc, de knoppen op het scherm, de wachtrij bij uitval, herladen, een verloren antwoord, een fout adres, een verkeerde sleutel, een geweigerde scan, starten zonder netwerk, een update van de app, en twee toestellen die tegelijk schrijven. Het script `Code.gs` is daarbij getest tegen een nagebootste Sheet.
+Getest in een geautomatiseerde browser (Chromium, schermgrootte van de MC3400): de volledige scanflow, alle foutgevallen, F1 tot F5 en F8, de knoppen op het scherm, de wachtrij bij uitval, herladen, een verloren antwoord, een fout adres, een verkeerde sleutel, een geweigerde scan, starten zonder netwerk, een update van de app, en twee toestellen die tegelijk schrijven. Het script `Code.gs` is daarbij getest tegen een nagebootste Sheet.
 
 Twee belastingstests, omdat "een scan mag nooit verloren gaan" de harde eis is:
 

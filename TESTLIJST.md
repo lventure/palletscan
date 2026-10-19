@@ -2,7 +2,7 @@
 
 Nodig: de Zebra met de app op het startscherm, de afgedrukte `testbarcodes.html`, de Sheet open op een pc of smartphone, en één echt palletlabel.
 
-Nog geen Zebra? Met een smartphone of pc kun je de stappen 1 tot 15, 17, 18 en 21 tot 26 al aflopen. Zie "Testen zonder Zebra" in de README. Gebruik dan de knoppen op het scherm waar hier F1 tot F5 of Esc staat.
+Nog geen Zebra? Met een smartphone of pc kun je de stappen 1 tot 15, 17, 18 en 21 tot 26 al aflopen. Zie "Testen zonder Zebra" in de README. Gebruik dan de knoppen op het scherm waar hier F1 tot F5 of F8 staat.
 
 De testpallets A en B zijn verzonnen nummers. De rijen die je ermee schrijft, mag je na de test zelf uit het tabblad Scans verwijderen.
 
@@ -12,9 +12,9 @@ De testpallets A en B zijn verzonnen nummers. De rijen die je ermee schrijft, ma
 - [ ] 2. Scan **Pallet A**. Het scherm wordt geel en toont de 18 cijfers groot. Je hoort een korte tik.
 - [ ] 3. Scan **Locatie A03**. Het scherm wordt groen met **A03** en je hoort één hoge toon. Daarna staat er opnieuw SCAN PALLET.
 - [ ] 4. In de Sheet staat een nieuwe rij: datum en uur kloppen, de SSCC heeft 18 cijfers, plaats is `A03`, en de toestelnaam klopt.
-- [ ] 5. Scan **Pallet A**, druk **F1**. Groen met **Uitgenomen**. De rij staat in de Sheet.
-- [ ] 6. Scan **Pallet B**, druk **F2**. Groen met **Verzonden**. Doe hetzelfde met **F3** (groen met **TEE**), **F4** (**Gang 1**) en **F5** (**Gang 2**): telkens eerst Pallet B scannen. De vier rijen staan in de Sheet.
-- [ ] 7. Scan **Pallet A**, druk **Esc**. Grijs met **Geannuleerd**. Er komt geen rij bij.
+- [ ] 5. Scan **Pallet A**, druk **F1**. Groen met **Klaar**. De rij staat in de Sheet.
+- [ ] 6. Scan **Pallet B**, druk **F2**. Groen met **Uitgenomen**. Doe hetzelfde met **F3** (groen met **TEE**), **F4** (**Gang 1**) en **F5** (**Gang 2**): telkens eerst Pallet B scannen. De vier rijen staan in de Sheet.
+- [ ] 7. Scan **Pallet A**, druk **F8**. Grijs met **Geannuleerd**. Er komt geen rij bij.
 - [ ] 8. Onderaan staan de laatste scans met een groen vinkje.
 
 ## B. Fouten
@@ -29,10 +29,10 @@ De testpallets A en B zijn verzonnen nummers. De rijen die je ermee schrijft, ma
 
 ## C. Toetsen en typen
 
-- [ ] 16. Open ⚙ en druk op F1 tot F5 en Esc. Bij **Toetstest** verschijnt telkens een waarde. Verschijnt er niets, noteer welke toets en zie "Functietoetsen" in de README.
+- [ ] 16. Open ⚙ en druk op F1 tot F5 en F8. Druk geen Esc: die sluit de app. Bij **Toetstest** verschijnt telkens een waarde. Verschijnt er niets, noteer welke toets en zie "Functietoetsen" in de README.
 - [ ] 17. Typ een SSCC van een echt label met het toetsenbord en druk Enter. De pallet opent.
 - [ ] 18. Typ `A03` en druk Enter. Groen, en de rij staat in de Sheet.
-- [ ] 19. Scan **Pallet A** en scan de commando-barcode **Verzonden**. Groen met Verzonden.
+- [ ] 19. Scan **Pallet A** en scan de commando-barcode **Uitgenomen**. Groen met Uitgenomen.
 - [ ] 20. Doe stap 2 tot 6 opnieuw met handschoenen aan, zonder het scherm aan te raken.
 
 ## D. Wifi en wachtrij
