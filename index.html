@@ -14,7 +14,7 @@
    CONFIGURATIE – alle instelbare waarden staan hier samen.
    ====================================================================== */
 var CONFIG = {
-  APP_VERSION: "1.4.2",
+  APP_VERSION: "1.4.3",
 
   /* --- Verzenden ---------------------------------------------------- */
   // Web-app-adres van het Apps Script (eindigt op /exec).
@@ -61,11 +61,15 @@ var CONFIG = {
   SEND_TIMEOUT_MS: 20000,    // na deze tijd geldt een verzending als mislukt
   RETRY_MIN_MS: 2000,        // eerste wachttijd na een mislukte verzending
   RETRY_MAX_MS: 30000,       // langste wachttijd tussen twee pogingen
-  // true: het invoerveld houdt altijd de focus (nodig als de scanner zijn tekst
-  // als één string aanlevert). false: het veld krijgt geen focus en de toetsen
-  // worden op paginaniveau opgevangen; gebruik dit als het schermtoetsenbord
-  // blijft verschijnen. Vereist dat de scanner tekens als toetsaanslagen stuurt.
-  FOCUS_INPUT: true,
+  // false: het invoerveld krijgt geen focus en de toetsaanslagen van de scanner
+  // worden op paginaniveau opgevangen, zodat Android nooit een schermtoetsenbord
+  // opent (Keyence met Transmission type = KeyEvent). Typen kan nog altijd:
+  // tik op het veld. true: het veld houdt altijd de focus; nodig als de
+  // scanner zijn tekst in het veld invoegt in plaats van toetsen te sturen.
+  FOCUS_INPUT: false,
+  // true: de terugknop van Android (en Esc, die Android als "Terug" doorgeeft)
+  // annuleert de open pallet in plaats van de app te sluiten.
+  BACK_IS_CANCEL: true,
   // "none": geen schermtoetsenbord; werkt als de scanner toetsaanslagen stuurt
   // (Keyence: Data output > Transmission type = KeyEvent). "text": het
   // invoerveld houdt een actief toetsenbord (IME); nodig als de scanner zijn
@@ -764,6 +768,19 @@ var CONFIG = {
   }, true);
 
   $('f').addEventListener('submit', function (e) { e.preventDefault(); if (!dlgOpen) submitInput(); });
+
+  // Android geeft Esc op een fysiek toetsenbord door als "Terug", en in een app
+  // op het startscherm sluit Terug de app. Een extra stap in de geschiedenis
+  // vangt dat op: Terug komt dan als popstate binnen en telt als Annuleer.
+  if (CONFIG.BACK_IS_CANCEL) {
+    var armBack = function () { try { history.pushState({ palletscan: 1 }, '', location.href); } catch (e) {} };
+    armBack();
+    window.addEventListener('popstate', function () {
+      armBack();
+      if (dlgOpen) { closeDialog(); return; }
+      if (openSscc) { inp.value = ''; hideFlash(); cancelPallet(); }
+    });
+  }
   inp.addEventListener('input', function () { if ($('flash').className === 'err') hideFlash(); });
 
   var manualKeyboard = false; // ⌨ aangezet: dan altijd focus, ook met FOCUS_INPUT false
