@@ -119,9 +119,23 @@ Typen test de app, maar niet het scannen. Dat kan op drie manieren, van meest na
 
 De rechterkolom bevat de risico's van de aankoop zelf. Vraag de leverancier daarom een demotoestel of een retourrecht, en loop daarmee de stappen 16, 20 en 27 tot 30 van `TESTLIJST.md` af vóór de aankoop definitief is.
 
-## Scannerinstellingen op de Zebra (DataWedge)
+## Scannerinstellingen op de Keyence BT-A600
 
-De scanner moet de gelezen tekst als toetsaanslagen doorgeven, gevolgd door Enter. De namen hieronder kunnen per DataWedge-versie licht verschillen.
+Het toestel in gebruik is de Keyence BT-A600. De scanner moet de gelezen tekst als toetsaanslagen doorgeven, gevolgd door Enter. Alles staat in de app **Instellingen** onder **Scanner**. De namen komen uit de FAQ van Keyence voor de Android-toestellen en kunnen op de BT-A600 licht afwijken.
+
+1. **Scanner > Data output > Terminator**: Enter. Zo volgt na elke scan een Enter.
+2. **Scanner > Data output**: de gescande tekst moet als toetsenbordinvoer naar de actieve app gaan. Staat er een keuze zoals "Key event", "Keyboard" of "Key input", kies die.
+3. **Scanner > Aimer > Center point reading**: Always enable. Dan leest hij alleen de barcode onder de laserpointer, en niet die van de pallet ernaast. Staat het niet onder Aimer, kijk dan onder Target.
+4. **Scanner > Code param**: Code 128 en GS1-128 aan; EAN en UPC uit als dat kan. Dan kan de scanner minder verkeerde barcodes lezen.
+5. **Test**: open Palletscan, tik in het invoerveld onderaan en scan Pallet A van `testbarcodes.html`. Het scherm moet geel worden. Komt de tekst wel in het veld maar gebeurt er niets, dan staat de Terminator niet op Enter. Komt er niets, dan staat de uitvoer niet op toetsenbordinvoer.
+
+**Toetsen:** op de BT-A600 komen F1 tot F8 en Esc zuiver door in Chrome (gecontroleerd met ⚙ > Toetstest). De standaardtoetsen uit het configuratieblok werken dus zonder aanpassing.
+
+De instellingen van het toestel onderaan de volgende sectie (datum en tijd, schermtime-out, browsegegevens) gelden ook voor de Keyence.
+
+## Scannerinstellingen op een Zebra (DataWedge)
+
+Alleen nodig als je toch een Zebra gebruikt. De scanner moet de gelezen tekst als toetsaanslagen doorgeven, gevolgd door Enter. De namen hieronder kunnen per DataWedge-versie licht verschillen.
 
 1. Open de app **DataWedge**. Kies **⋮ > New profile** en noem het `Palletscan`.
 2. **Associated apps**: voeg `com.android.chrome` toe met activity `*`.
@@ -176,7 +190,7 @@ Op Android kan Esc door het systeem als "Terug" behandeld worden. Dan sluit de a
 Komt een toets helemaal niet door in Chrome, of doet ze iets anders, dan zijn er drie uitwegen:
 
 1. Een andere toets kiezen die wel doorkomt en die in het configuratieblok zetten.
-2. De toets op de Zebra omleiden via **Instellingen > Key Programmer**.
+2. De toets op het toestel zelf anders laten instellen: op de Keyence via de instelbare toetsen (vraag de Keyence-engineer), op een Zebra via **Instellingen > Key Programmer**.
 3. De commando-barcodes `CMDUIT`, `CMDVERZ`, `CMDTEE`, `CMDGANG1`, `CMDGANG2` en `CMDESC` afdrukken (ze staan op `testbarcodes.html`) en op de heftruck kleven. Die werken zoals F1 tot F5 en Esc en vragen geen toets.
 
 De knoppen op het scherm werken altijd.
@@ -194,7 +208,7 @@ Een palletplaats is één letter en twee cijfers: `A03`, `B48`, `C13`, `D94`. De
 
 Test de leesafstand met een paar etiketten vóór je alle rekken labelt.
 
-Een locatie met de hand typen vraagt een letter. Op een Zebra met numeriek toetsenbord (29 of 38 toetsen) typ je letters meestal via een alfa-toets; op het alfanumerieke toetsenbord (47 toetsen) rechtstreeks. Typen is alleen de reserve voor een onleesbaar etiket, maar hou er rekening mee bij de keuze van het toetsenbord.
+Een locatie met de hand typen vraagt een letter. Op de Keyence BT-A600 kan dat rechtstreeks op het alfanumerieke toetsenbord. Typen is alleen de reserve voor een onleesbaar etiket.
 
 ## De Sheet
 
@@ -332,7 +346,7 @@ Twee belastingstests, omdat "een scan mag nooit verloren gaan" de harde eis is:
 Niet getest, omdat het alleen ter plaatse kan:
 
 - `Code.gs` in een echte Google Sheet. De nagebootste Sheet volgt het gedrag van Google, maar is Google niet.
-- De Zebra MC3400 zelf: of F1 tot F5 en Esc doorkomen in Chrome, hoe DataWedge de tekens aanlevert, en of het scherm leesbaar is vanop armlengte.
+- De Keyence BT-A600 zelf, behalve de toetsen: F1 tot F8 en Esc komen door in Chrome (nagekeken met ⚙ > Toetstest). Niet nagekeken: hoe de scanner de tekens aanlevert, en of het scherm leesbaar is vanop armlengte.
 - Het lezen van echte palletlabels door wikkelfolie.
 
 Daarvoor dient `TESTLIJST.md`.
