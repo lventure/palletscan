@@ -9,8 +9,8 @@ De testpallets A en B zijn verzonnen nummers. De rijen die je ermee schrijft, ma
 ## A. Basisflow
 
 - [ ] 1. Start: het scherm is zwart met **SCAN PALLET**, en **WACHTRIJ 0** is groen.
-- [ ] 2. Scan **Pallet A**. Het scherm wordt geel en toont de 18 cijfers groot. Je hoort een korte tik.
-- [ ] 3. Scan **Locatie A03**. Het scherm wordt groen met **A03** en je hoort één hoge toon. Daarna staat er opnieuw SCAN PALLET.
+- [ ] 2. Scan **Pallet A**. Het scherm wordt geel en toont groot **6789** (de vier cijfers vóór het controlecijfer), met de volledige SSCC klein eronder. Je hoort een korte tik.
+- [ ] 3. Scan **Locatie A03**. Het scherm wordt groen met **6789** groot en daaronder **✔ A03**, en je hoort één hoge toon. Daarna staat er opnieuw SCAN PALLET.
 - [ ] 4. In de Sheet staat een nieuwe rij: datum en uur kloppen, de SSCC heeft 18 cijfers, plaats is `A03`, en de toestelnaam klopt.
 - [ ] 5. Scan **Pallet A**, druk **F1**. Groen met **Klaar**. De rij staat in de Sheet.
 - [ ] 6. Scan **Pallet B**, druk **F2**. Groen met **Uitgenomen**. Doe hetzelfde met **F3** (groen met **TEE**), **F4** (**Gang 1**) en **F5** (**Gang 2**): telkens eerst Pallet B scannen. De vier rijen staan in de Sheet.

@@ -21,7 +21,9 @@
       { text: 'Gang 1', barcode: 'CMDGANG1' },
       { text: 'Gang 2', barcode: 'CMDGANG2' }
     ],
-    barcodeAnnuleren: 'CMDESC'
+    barcodeAnnuleren: 'CMDESC',
+    shortCodeFrom: 14,                           // korte palletcode: cijfers 14 tot 17 van de SSCC
+    shortCodeLen: 4                              // (de vier laatste vóór het controlecijfer)
   };
 
   function withDefaults(cfg) {
@@ -117,7 +119,15 @@
     return err('unknown', 'Onbekende barcode', 'Gelezen: ' + shown);
   }
 
-  function tail(sscc) { return '…' + String(sscc).slice(-6); }
+  /* Korte palletcode waarmee de magazijnier een pallet herkent: standaard de
+     vier laatste cijfers vóór het controlecijfer (positie 14 tot 17). */
+  function shortCode(sscc, cfg) {
+    var c = withDefaults(cfg), s = String(sscc || '');
+    var from = Math.max(1, c.shortCodeFrom | 0), len = Math.max(1, c.shortCodeLen | 0);
+    return s.slice(from - 1, from - 1 + len);
+  }
+
+  function tail(sscc) { return '…' + shortCode(sscc); }
 
   /*
    * Beslissen wat er gebeurt, gegeven de open pallet (SSCC of null) en een
@@ -157,6 +167,7 @@
     gs1CheckDigit: gs1CheckDigit,
     isValidSscc: isValidSscc,
     parseScan: parseScan,
+    shortCode: shortCode,
     decide: decide
   };
 });

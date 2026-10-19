@@ -216,6 +216,12 @@ Test de leesafstand met een paar etiketten vóór je alle rekken labelt.
 
 Een locatie met de hand typen vraagt een letter. Op de Keyence BT-A600 kan dat rechtstreeks op het alfanumerieke toetsenbord. Typen is alleen de reserve voor een onleesbaar etiket.
 
+## Korte palletcode op het scherm
+
+Na het scannen van een pallet toont de app niet de volledige SSCC groot, maar de **korte palletcode**: de vier laatste cijfers vóór het controlecijfer (positie 14 tot 17). Van `154199802502004042` is dat `0404`. De volledige SSCC staat er in het klein onder, met die vier cijfers vet en onderstreept. Na het wegschrijven staat dezelfde korte code groot in het groen, met daaronder de plaats en een vinkje. In de lijst van laatste scans staat de korte code ook (op een breed scherm de volledige SSCC). In de Sheet komt altijd de volledige SSCC.
+
+Welke cijfers de korte code vormen, staat in het configuratieblok: `SHORT_CODE_FROM` (eerste positie, 1 = eerste cijfer) en `SHORT_CODE_LEN` (aantal cijfers). Twee pallets kunnen dezelfde korte code hebben; de app controleert altijd op de volledige SSCC.
+
 ## De Sheet
 
 | Kolom | Inhoud |
@@ -291,6 +297,11 @@ Het getal naast **WACHTRIJ** bovenaan is het aantal scans dat nog niet in de She
 Het toestel haalt bij elke start met wifi alle bestanden van de app samen op en vervangt de oude alleen als ze allemaal binnen zijn. Een toestel draait dus nooit een half bijgewerkte app.
 
 ## Wijzigingen
+
+### Versie 1.5.1
+
+- Na het scannen van een pallet staat de korte palletcode groot op het scherm (de vier laatste cijfers vóór het controlecijfer), met de volledige SSCC klein eronder. Na het wegschrijven: de korte code groot, daaronder de plaats met vinkje. De lijst van laatste scans toont ook de korte code. Instelbaar met `SHORT_CODE_FROM` en `SHORT_CODE_LEN`.
+- Liggend scherm tot 500 px hoog (zoals de BT-A600 liggend) gebruikt de indeling met de scans rechts naast het hoofdvlak.
 
 ### Versie 1.5.0
 

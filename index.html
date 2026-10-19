@@ -14,7 +14,7 @@
    CONFIGURATIE – alle instelbare waarden staan hier samen.
    ====================================================================== */
 var CONFIG = {
-  APP_VERSION: "1.5.0",
+  APP_VERSION: "1.5.1",
 
   /* --- Verzenden ---------------------------------------------------- */
   // Web-app-adres van het Apps Script (eindigt op /exec).
@@ -52,6 +52,10 @@ var CONFIG = {
   ],
 
   /* --- Annuleren ------------------------------------------------------ */
+  // Korte palletcode, groot op het scherm: cijfers 14 tot 17 van de SSCC,
+  // de vier laatste vóór het controlecijfer (154199802502004042 -> 0404).
+  SHORT_CODE_FROM: 14,
+  SHORT_CODE_LEN: 4,
   KEYS_ANNULEREN: ["F8"],       // Esc niet: Android geeft Esc door als "Terug" en sluit dan de app
   BARCODE_ANNULEREN: "CMDESC",
 
@@ -107,10 +111,12 @@ var CONFIG = {
   body.open #main { background: #ffd500; color: #000; }
   #prompt { font-size: min(13vw, 13vh, 110px); font-weight: 900; line-height: 1.05; }
   #promptsub { font-size: clamp(14px, 4.6vw, 30px); font-weight: 500; margin-top: 6px; color: #bdbdbd; }
-  #sscc { font-size: min(13.4vw, 15vh, 120px); font-weight: 900; line-height: 1.02; font-variant-numeric: tabular-nums; white-space: pre; }
+  #sscc { font-size: min(36vw, 26vh, 300px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  #ssccfull { font-size: clamp(14px, 4.4vw, 30px); font-weight: 500; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #ssccfull b { font-weight: 900; text-decoration: underline; text-underline-offset: 0.15em; }
   #hint { font-size: clamp(15px, 5vw, 32px); font-weight: 900; margin-top: 4px; }
   body.open #prompt, body.open #promptsub { display: none; }
-  body:not(.open) #sscc, body:not(.open) #hint { display: none; }
+  body:not(.open) #sscc, body:not(.open) #ssccfull, body:not(.open) #hint { display: none; }
 
   /* Bevestiging / fout over het hoofdvlak */
   #flash { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px; pointer-events: none; }
@@ -120,6 +126,9 @@ var CONFIG = {
   #flashicon { font-size: min(15vw, 14vh, 120px); line-height: 1; font-weight: 900; }
   #flashtitle { font-size: min(9.5vw, 10vh, 84px); font-weight: 900; line-height: 1.08; }
   #flashsub { font-size: clamp(15px, 5vw, 34px); font-weight: 700; margin-top: 6px; line-height: 1.15; overflow-wrap: anywhere; }
+  /* Gelukt: de korte palletcode groot, daaronder de plaats met vinkje */
+  #flash.ok #flashtitle { font-size: min(36vw, 24vh, 260px); line-height: 1; letter-spacing: 0.02em; }
+  #flash.ok #flashsub { font-size: min(13vw, 9vh, 96px); font-weight: 900; margin-top: 8px; line-height: 1.05; }
 
   /* Invoerregel */
   #f { flex: 0 0 auto; display: flex; background: #000; border-top: 2px solid #444; }
@@ -142,6 +151,7 @@ var CONFIG = {
   #hist .t { color: #bdbdbd; font-weight: 500; }
   #hist .s { flex: 0 0 auto; }
   #hist .s .head { display: none; }
+  #hist .s .sc { font-weight: 900; }
   #hist .l { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
   #hist .st { flex: 0 0 auto; font-weight: 900; }
   #hist .st .w { display: none; }
@@ -157,11 +167,11 @@ var CONFIG = {
 
   /* Brede schermen (pc, liggend toestel): scans rechts naast het hoofdvlak */
   @media (min-width: 600px) {
-    #hist .s .head, #hist .st .w { display: inline; } #hist .s .dots { display: none; }
+    #hist .s .head, #hist .st .w { display: inline; } #hist .s .dots, #hist .s .sc { display: none; }
     #actions { grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); }
     #actions #bCancel { grid-column: auto; }
   }
-  @media (orientation: landscape) and (max-height: 420px) {
+  @media (orientation: landscape) and (max-height: 500px) {
     body { display: grid; grid-template-columns: minmax(0, 54fr) minmax(0, 46fr); grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; }
     #top, #net { grid-column: 1 / -1; }
     #main { grid-column: 1; grid-row: 3 / 7; }
@@ -171,17 +181,21 @@ var CONFIG = {
     #net { font-size: clamp(12px, 2.4vw, 18px); }
     #prompt { font-size: min(8vw, 24vh); }
     #promptsub { font-size: clamp(12px, 2.6vw, 20px); }
-    #sscc { font-size: min(7.2vw, 24vh); }
+    #sscc { font-size: min(18vw, 42vh); }
+    #ssccfull { font-size: clamp(12px, 2.2vw, 20px); }
     #hint { font-size: clamp(14px, 3vw, 24px); }
     #flashtitle { font-size: min(5.6vw, 17vh); }
     #flashicon { font-size: min(8vw, 18vh); }
     #flashsub { font-size: clamp(13px, 2.8vw, 22px); }
+    #flash.ok #flashtitle { font-size: min(18vw, 40vh); }
+    #flash.ok #flashsub { font-size: min(7vw, 16vh); }
     #in, #kbd { font-size: clamp(16px, 3.4vw, 24px); }
     #actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     #actions #bCancel { grid-column: span var(--cancel-span, 1); }
     #actions button { min-height: 38px; font-size: clamp(9.5px, 1.85vw, 18px); padding: 1px; }
     #actions button .k { font-size: clamp(14px, 3vw, 24px); }
     #hist { font-size: clamp(12px, 2.5vw, 18px); overflow: hidden; border-top: 0; }
+    #hist .s .head, #hist .st .w { display: none; } #hist .s .dots, #hist .s .sc { display: inline; } /* smalle kolom: alleen de korte code */
     #foot { font-size: clamp(11px, 2.2vw, 16px); }
     #gear { font-size: clamp(18px, 4vw, 28px); }
   }
@@ -216,6 +230,7 @@ var CONFIG = {
   <div id="prompt">SCAN<br>PALLET</div>
   <div id="promptsub">SSCC-barcode op het palletlabel</div>
   <div id="sscc"></div>
+  <div id="ssccfull"></div>
   <div id="hint">Scan nu de LOCATIE</div>
   <div id="flash"><div id="flashicon"></div><div id="flashtitle"></div><div id="flashsub"></div></div>
 </div>
@@ -443,16 +458,23 @@ var CONFIG = {
     var k = (list && list[0]) || fallback;
     return k === 'Escape' ? 'Esc' : String(k);
   }
-  function groupSscc(s) { // 18 cijfers op twee regels, per drie gegroepeerd
-    var a = s.slice(0, 9), b = s.slice(9);
-    var g = function (x) { return x.replace(/(\d{3})(?=\d)/g, '$1 '); };
-    return g(a) + '\n' + g(b);
+  var SHORT = { shortCodeFrom: CONFIG.SHORT_CODE_FROM, shortCodeLen: CONFIG.SHORT_CODE_LEN };
+  function shortCode(sscc) { return L.shortCode(sscc, SHORT); }
+  // Volledige SSCC in klein, met de korte code vet en onderstreept.
+  function fillFullSscc(el, sscc) {
+    el.textContent = '';
+    if (!sscc) return;
+    var from = Math.max(1, SHORT.shortCodeFrom | 0) - 1, to = from + Math.max(1, SHORT.shortCodeLen | 0);
+    el.appendChild(document.createTextNode(sscc.slice(0, from)));
+    var b = document.createElement('b'); b.textContent = sscc.slice(from, to); el.appendChild(b);
+    el.appendChild(document.createTextNode(sscc.slice(to)));
   }
 
   function render() {
     document.body.classList.toggle('open', !!openSscc);
     $('state').textContent = openSscc ? 'PALLET OPEN' : 'WACHT OP PALLET';
-    $('sscc').textContent = openSscc ? groupSscc(openSscc) : '';
+    $('sscc').textContent = openSscc ? shortCode(openSscc) : '';
+    fillFullSscc($('ssccfull'), openSscc);
 
     var n = snap.queue.length;
     $('queue').textContent = 'WACHTRIJ ' + n;
@@ -471,9 +493,9 @@ var CONFIG = {
       var li = document.createElement('li');
       var t = document.createElement('span'); t.className = 't'; t.textContent = timeText(r.ts).slice(0, 5);
       var s = document.createElement('span'); s.className = 's';
-      var head = document.createElement('span'); head.className = 'head'; head.textContent = r.sscc.slice(0, 12);
       var dots = document.createElement('span'); dots.className = 'dots'; dots.textContent = '…';
-      s.appendChild(dots); s.appendChild(head); s.appendChild(document.createTextNode(r.sscc.slice(-6)));
+      var head = document.createElement('span'); head.className = 'head'; s.appendChild(dots); s.appendChild(head); fillFullSscc(head, r.sscc);
+      var sc = document.createElement('b'); sc.className = 'sc'; sc.textContent = shortCode(r.sscc); s.appendChild(sc);
       var l = document.createElement('span'); l.className = 'l'; l.textContent = r.loc;
       var st = document.createElement('span');
       if (rej[r.id]) { st.className = 'st rej'; st.textContent = '✖ geweigerd'; }
@@ -495,7 +517,7 @@ var CONFIG = {
   function flash(kind, title, sub, ms) {
     clearTimeout(flashTimer);
     $('flash').className = kind;
-    $('flashicon').textContent = kind === 'ok' ? '✔' : kind === 'err' ? '✖' : '';
+    $('flashicon').textContent = kind === 'err' ? '✖' : ''; // gelukt: het vinkje staat bij de plaats
     $('flashtitle').textContent = title || '';
     $('flashsub').textContent = sub || '';
     if (ms) flashTimer = setTimeout(hideFlash, ms);
@@ -605,7 +627,7 @@ var CONFIG = {
       snap.history = [rec].concat(snap.history).slice(0, 5);
       storageOk = true;
       render(); signal('ok');
-      flash('ok', target, 'Pallet …' + sscc.slice(-6), 1800);
+      flash('ok', shortCode(sscc), '✔ ' + target, 1800);
       announce();
       release();
       // 2. Daarna verzenden.
