@@ -131,7 +131,7 @@ Het toestel in gebruik is de Keyence BT-A600. De scanner moet de gelezen tekst a
 
 **Toetsen:** op de BT-A600 komen F1 tot F8 en Esc zuiver door in Chrome (gecontroleerd met ⚙ > Toetstest). De standaardtoetsen uit het configuratieblok werken dus zonder aanpassing.
 
-**Esc sluit de app:** Android geeft Esc op een fysiek toetsenbord ook door als "Terug", en in een app op het startscherm sluit Terug de app. Sinds versie 1.4.3 vangt de app dat op (`BACK_IS_CANCEL: true`): Terug en Esc annuleren de open pallet, en de app blijft open. Wil je de app toch sluiten, gebruik dan de thuisknop of het overzicht van open apps.
+**Esc sluit de app:** Android geeft Esc op een fysiek toetsenbord ook door als "Terug", en in een app op het startscherm sluit Terug de app. Sinds versie 1.4.4 vangt de app dat op (`BACK_IS_CANCEL: true`): Terug en Esc annuleren de open pallet, en de app blijft open. Wil je de app toch sluiten, gebruik dan de thuisknop of het overzicht van open apps. Sluit Esc de app toch nog (versie 1.4.4 of hoger onderaan het scherm), kies dan een andere toets voor Annuleer: zet `KEYS_ANNULEREN` in het configuratieblok op `["F8"]` (F6, F7 en F8 zijn vrij op de BT-A600). De knop Annuleer op het scherm toont dan F8.
 
 **Schermtoetsenbord:** sinds versie 1.4.3 staat `FOCUS_INPUT` standaard op `false`: het invoerveld heeft geen focus, de toetsaanslagen van de scanner worden op paginaniveau opgevangen, en Android heeft dus geen reden om een schermtoetsenbord te openen, ook niet na een scan. Typen kan nog altijd door op het veld te tikken; na Enter laat de app het veld weer los. Verschijnt het schermtoetsenbord toch, zet het dan uit in de Android-instellingen: **Instellingen > Systeem > Toetsenbord > Fysiek toetsenbord > Schermtoetsenbord gebruiken** uit (de naam kan per Android-versie verschillen; het gaat om de optie die het schermtoetsenbord toont terwijl er een fysiek toetsenbord is).
 
@@ -291,6 +291,10 @@ Het getal naast **WACHTRIJ** bovenaan is het aantal scans dat nog niet in de She
 Het toestel haalt bij elke start met wifi alle bestanden van de app samen op en vervangt de oude alleen als ze allemaal binnen zijn. Een toestel draait dus nooit een half bijgewerkte app.
 
 ## Wijzigingen
+
+### Versie 1.4.4
+
+- Terug/Esc: de geschiedenisstap wordt nu ook gezet bij de eerste toets of aanraking en na elke Terug, omdat Chrome stappen overslaat die zonder handeling van de gebruiker zijn toegevoegd. README: F8 als reserve voor Annuleer.
 
 ### Versie 1.4.3
 

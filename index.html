@@ -14,7 +14,7 @@
    CONFIGURATIE – alle instelbare waarden staan hier samen.
    ====================================================================== */
 var CONFIG = {
-  APP_VERSION: "1.4.3",
+  APP_VERSION: "1.4.4",
 
   /* --- Verzenden ---------------------------------------------------- */
   // Web-app-adres van het Apps Script (eindigt op /exec).
@@ -772,9 +772,19 @@ var CONFIG = {
   // Android geeft Esc op een fysiek toetsenbord door als "Terug", en in een app
   // op het startscherm sluit Terug de app. Een extra stap in de geschiedenis
   // vangt dat op: Terug komt dan als popstate binnen en telt als Annuleer.
+  // Chrome slaat bij Terug stappen over die de pagina toevoegde zonder dat de
+  // gebruiker iets deed; daarom wordt de stap (opnieuw) gezet bij de eerste
+  // toets of aanraking, en na elke Terug.
   if (CONFIG.BACK_IS_CANCEL) {
     var armBack = function () { try { history.pushState({ palletscan: 1 }, '', location.href); } catch (e) {} };
+    var backArmedByUser = false;
+    var armBackByUser = function (e) {
+      if (backArmedByUser || (e && e.key === 'Escape')) return; // Esc telt voor Chrome niet als handeling
+      backArmedByUser = true; armBack();
+    };
     armBack();
+    document.addEventListener('keydown', armBackByUser, true);
+    document.addEventListener('pointerdown', armBackByUser, true);
     window.addEventListener('popstate', function () {
       armBack();
       if (dlgOpen) { closeDialog(); return; }
