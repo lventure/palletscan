@@ -17,8 +17,9 @@
     statuses: [
       { text: 'Uitgenomen', barcode: 'CMDUIT' },
       { text: 'Verzonden', barcode: 'CMDVERZ' },
-      { text: 'Gang', barcode: 'CMDGANG' },
-      { text: 'TEE', barcode: 'CMDTEE' }
+      { text: 'TEE', barcode: 'CMDTEE' },
+      { text: 'Gang 1', barcode: 'CMDGANG1' },
+      { text: 'Gang 2', barcode: 'CMDGANG2' }
     ],
     barcodeAnnuleren: 'CMDESC'
   };
@@ -65,7 +66,7 @@
    * Resultaat is één van:
    *   { type: 'sscc',     sscc: '18 cijfers' }
    *   { type: 'location', location: 'A03' }
-   *   { type: 'status',   target: 'Gang' }             een vaste bestemming uit de lijst
+   *   { type: 'status',   target: 'Gang 1' }           een vaste bestemming uit de lijst
    *   { type: 'command',  command: 'ANNULEREN' }
    *   { type: 'error',    code, message, detail }
    */
@@ -122,7 +123,7 @@
    * Beslissen wat er gebeurt, gegeven de open pallet (SSCC of null) en een
    * ontlede scan. Resultaat is één van:
    *   { do: 'open',   sscc }
-   *   { do: 'write',  sscc, target }      target = locatie of een vaste bestemming (bv. "Gang")
+   *   { do: 'write',  sscc, target }      target = locatie of een vaste bestemming (bv. "Gang 1")
    *   { do: 'cancel', sscc }
    *   { do: 'ignore' }                    niets doen (bv. dezelfde pallet opnieuw gescand)
    *   { do: 'error',  message, detail }
