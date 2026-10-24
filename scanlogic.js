@@ -18,8 +18,7 @@
       { text: 'Klaar', barcode: 'CMDKLAAR' },
       { text: 'Uitgenomen', barcode: 'CMDUIT' },
       { text: 'TEE', barcode: 'CMDTEE' },
-      { text: 'Gang 1', barcode: 'CMDGANG1' },
-      { text: 'Gang 2', barcode: 'CMDGANG2' }
+      { text: 'Buffer', barcode: 'CMDBUFFER' }
     ],
     barcodeAnnuleren: 'CMDESC',
     shortCodeFrom: 14,                           // korte palletcode: cijfers 14 tot 17 van de SSCC
@@ -68,7 +67,7 @@
    * Resultaat is één van:
    *   { type: 'sscc',     sscc: '18 cijfers' }
    *   { type: 'location', location: 'A03' }
-   *   { type: 'status',   target: 'Gang 1' }           een vaste bestemming uit de lijst
+   *   { type: 'status',   target: 'Buffer' }           een vaste bestemming uit de lijst
    *   { type: 'command',  command: 'ANNULEREN' }
    *   { type: 'error',    code, message, detail }
    */
@@ -133,7 +132,7 @@
    * Beslissen wat er gebeurt, gegeven de open pallet (SSCC of null) en een
    * ontlede scan. Resultaat is één van:
    *   { do: 'open',   sscc }
-   *   { do: 'write',  sscc, target }      target = locatie of een vaste bestemming (bv. "Gang 1")
+   *   { do: 'write',  sscc, target }      target = locatie of een vaste bestemming (bv. "Buffer")
    *   { do: 'cancel', sscc }
    *   { do: 'ignore' }                    niets doen (bv. dezelfde pallet opnieuw gescand)
    *   { do: 'error',  message, detail }
