@@ -14,7 +14,7 @@
    CONFIGURATIE – alle instelbare waarden staan hier samen.
    ====================================================================== */
 var CONFIG = {
-  APP_VERSION: "1.6.0",
+  APP_VERSION: "1.8.0",
 
   /* --- Verzenden ---------------------------------------------------- */
   // Web-app-adres van het Apps Script (eindigt op /exec).
@@ -46,9 +46,17 @@ var CONFIG = {
   STATUSES: [
     { text: "Klaar",      keys: ["F1"], barcode: "CMDKLAAR" },
     { text: "Uitgenomen", keys: ["F2"], barcode: "CMDUIT" },
-    { text: "TEE",        keys: ["F3"], barcode: "CMDTEE" },
     { text: "Buffer",     keys: ["F4"], barcode: "CMDBUFFER" }
   ],
+
+  /* --- Combineren ----------------------------------------------------- */
+  // Twee pallets samenvoegen: scan de pallet die LEEG is, druk Combineer, scan
+  // de pallet waarop alles nu ligt, en bevestig met dezelfde toets. In de Sheet
+  // komt in kolom C COMBINE_TEXT + de korte code van de doelpallet
+  // ("Samengevoegd met 0862") en in kolom G de volledige SSCC van de doelpallet.
+  KEYS_COMBINEREN: ["F5"],
+  BARCODE_COMBINEREN: "CMDCOMB",
+  COMBINE_TEXT: "Samengevoegd met",
 
   /* --- Annuleren ------------------------------------------------------ */
   // Korte palletcode, groot op het scherm: cijfers 14 tot 17 van de SSCC,
@@ -108,14 +116,17 @@ var CONFIG = {
   /* Hoofdvlak */
   #main { flex: 1 1 auto; min-height: 0; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 4px 6px; overflow: hidden; }
   body.open #main { background: #ffd500; color: #000; }
+  body.combine #main { background: #1e5bd6; color: #fff; }   /* combineren: blauw, duidelijk anders dan geel */
   #prompt { font-size: min(13vw, 13vh, 110px); font-weight: 900; line-height: 1.05; }
   #promptsub { font-size: clamp(14px, 4.6vw, 30px); font-weight: 500; margin-top: 6px; color: #bdbdbd; }
   #sscc { font-size: min(36vw, 26vh, 300px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
   #ssccfull { font-size: clamp(14px, 4.4vw, 30px); font-weight: 500; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   #ssccfull b { font-weight: 900; text-decoration: underline; text-underline-offset: 0.15em; }
+  #combto { font-size: min(17vw, 12vh, 140px); font-weight: 900; line-height: 1.05; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  #combto:empty { display: none; }
   #hint { font-size: clamp(15px, 5vw, 32px); font-weight: 900; margin-top: 4px; }
   body.open #prompt, body.open #promptsub { display: none; }
-  body:not(.open) #sscc, body:not(.open) #ssccfull, body:not(.open) #hint { display: none; }
+  body:not(.open) #sscc, body:not(.open) #ssccfull, body:not(.open) #combto, body:not(.open) #hint { display: none; }
 
   /* Bevestiging / fout over het hoofdvlak */
   #flash { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px; pointer-events: none; }
@@ -138,14 +149,19 @@ var CONFIG = {
 
   /* Actieknoppen */
   #actions { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #000; }
-  #actions button { min-height: clamp(48px, 15vw, 84px); border-radius: 8px; background: #fff; color: #000; font-size: clamp(13px, 4.2vw, 28px); font-weight: 900; line-height: 1.05; padding: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #actions button .k { display: block; font-size: clamp(19px, 6vw, 40px); }
+  #actions button { min-height: clamp(60px, 20vw, 110px); border-radius: 8px; background: #fff; color: #000; font-size: clamp(15px, 5vw, 32px); font-weight: 900; line-height: 1.05; padding: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #actions button .k { display: block; font-size: clamp(22px, 7.5vw, 48px); }
   #actions button:active { background: #ffd500; }
+  #actions #bCombine { background: #cfe0ff; }
   #actions #bCancel { background: #bdbdbd; grid-column: span var(--cancel-span, 1); }
   body:not(.open) #actions button { background: #333; color: #8a8a8a; }
+  body.combine #actions button { background: #333; color: #8a8a8a; }             /* tijdens combineren: alleen Combineer/Bevestig en Annuleer */
+  body.combine #actions #bCombine { background: #cfe0ff; color: #000; }
+  body.combine #actions #bCombine.confirm { background: #1e5bd6; color: #fff; }
+  body.combine #actions #bCancel { background: #bdbdbd; color: #000; }
 
   /* Laatste scans */
-  #hist { flex: 0 0 auto; list-style: none; background: #1a1a1a; border-top: 2px solid #444; padding: 2px 8px; font-size: clamp(14px, 4.5vw, 24px); font-weight: 700; font-variant-numeric: tabular-nums; }
+  #hist { flex: 0 0 auto; list-style: none; background: #1a1a1a; border-top: 2px solid #444; padding: 2px 8px; font-size: clamp(12px, 3.4vw, 17px); font-weight: 700; font-variant-numeric: tabular-nums; max-height: 2.9em; overflow-y: auto; -webkit-overflow-scrolling: touch; }   /* louter informatief: klein, twee regels zichtbaar, scrollen voor de rest */
   #hist li { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; line-height: 1.32; }
   #hist .t { color: #bdbdbd; font-weight: 500; }
   #hist .s { flex: 0 0 auto; }
@@ -167,7 +183,7 @@ var CONFIG = {
   /* Brede schermen (pc, liggend toestel): scans rechts naast het hoofdvlak */
   @media (min-width: 600px) {
     #hist .s .head, #hist .st .w { display: inline; } #hist .s .dots, #hist .s .sc { display: none; }
-    #actions { grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); }
+    #actions { grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); }
     #actions #bCancel { grid-column: auto; }
   }
   @media (orientation: landscape) and (max-height: 500px) {
@@ -182,6 +198,7 @@ var CONFIG = {
     #promptsub { font-size: clamp(12px, 2.6vw, 20px); }
     #sscc { font-size: min(18vw, 42vh); }
     #ssccfull { font-size: clamp(12px, 2.2vw, 20px); }
+    #combto { font-size: min(8vw, 18vh); }
     #hint { font-size: clamp(14px, 3vw, 24px); }
     #flashtitle { font-size: min(5.6vw, 17vh); }
     #flashicon { font-size: min(8vw, 18vh); }
@@ -191,9 +208,9 @@ var CONFIG = {
     #in, #kbd { font-size: clamp(16px, 3.4vw, 24px); }
     #actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     #actions #bCancel { grid-column: span var(--cancel-span, 1); }
-    #actions button { min-height: 38px; font-size: clamp(9.5px, 1.85vw, 18px); padding: 1px; }
-    #actions button .k { font-size: clamp(14px, 3vw, 24px); }
-    #hist { font-size: clamp(12px, 2.5vw, 18px); overflow: hidden; border-top: 0; }
+    #actions button { min-height: 50px; font-size: clamp(11px, 2.2vw, 20px); padding: 1px; }
+    #actions button .k { font-size: clamp(16px, 3.4vw, 28px); }
+    #hist { font-size: clamp(11px, 2.2vw, 16px); max-height: none; flex: 1 1 auto; min-height: 0; overflow-y: auto; border-top: 0; }
     #hist .s .head, #hist .st .w { display: none; } #hist .s .dots, #hist .s .sc { display: inline; } /* smalle kolom: alleen de korte code */
     #foot { font-size: clamp(11px, 2.2vw, 16px); }
     #gear { font-size: clamp(18px, 4vw, 28px); }
@@ -230,6 +247,7 @@ var CONFIG = {
   <div id="promptsub">SSCC-barcode op het palletlabel</div>
   <div id="sscc"></div>
   <div id="ssccfull"></div>
+  <div id="combto"></div>
   <div id="hint">Scan nu de LOCATIE</div>
   <div id="flash"><div id="flashicon"></div><div id="flashtitle"></div><div id="flashsub"></div></div>
 </div>
@@ -243,7 +261,7 @@ var CONFIG = {
 
 <div id="actions"></div>
 
-<ol id="hist" aria-label="Laatste 5 scans"></ol>
+<ol id="hist" aria-label="Laatste scans"></ol>
 
 <div id="foot">
   <span id="footinfo"></span>
@@ -279,7 +297,7 @@ var CONFIG = {
   <h3>Nog niet verzonden of geweigerd</h3>
   <textarea id="sDump" readonly></textarea>
   <div class="row"><button type="button" id="sRetry" class="sec" hidden>Geweigerde scans opnieuw proberen</button></div>
-  <small>Reserve: deze regels kun je kopiëren als verzenden blijvend mislukt. Kolommen: tijdstip, SSCC, plaats, ScanID, toestel.</small>
+  <small>Reserve: deze regels kun je kopiëren als verzenden blijvend mislukt. Kolommen: tijdstip, SSCC, plaats, ScanID, toestel, doel-SSCC.</small>
 </div>
 
 <script src="scanlogic.js"></script>
@@ -295,7 +313,11 @@ var CONFIG = {
   var LOGIC_CFG = {
     locationPattern: CONFIG.LOCATION_PATTERN,
     statuses: STATUSES,
-    barcodeAnnuleren: CONFIG.BARCODE_ANNULEREN
+    barcodeAnnuleren: CONFIG.BARCODE_ANNULEREN,
+    barcodeCombineren: CONFIG.BARCODE_COMBINEREN,
+    combineText: CONFIG.COMBINE_TEXT,
+    shortCodeFrom: CONFIG.SHORT_CODE_FROM,
+    shortCodeLen: CONFIG.SHORT_CODE_LEN
   };
 
   /* ------------------------------------------------------------------
@@ -389,7 +411,7 @@ var CONFIG = {
       t.objectStore('rejected').getAll().onsuccess = function (e) { out.rejected = e.target.result || []; };
       t.objectStore('history').openCursor(null, 'prev').onsuccess = function (e) {                          // nieuwste eerst
         var c = e.target.result;
-        if (c && out.history.length < 5) { out.history.push(c.value); c.continue(); }
+        if (c && out.history.length < 10) { out.history.push(c.value); c.continue(); }
       };
       return out;
     });
@@ -419,7 +441,11 @@ var CONFIG = {
     return tx(['queue', 'rejected'], 'readwrite', function (t) {
       var q = t.objectStore('queue'), r = t.objectStore('rejected');
       r.getAll().onsuccess = function (e) {
-        (e.target.result || []).forEach(function (x) { q.add({ id: x.id, ts: x.ts, sscc: x.sscc, loc: x.loc, dev: x.dev }); });
+        (e.target.result || []).forEach(function (x) {
+          var rec = { id: x.id, ts: x.ts, sscc: x.sscc, loc: x.loc, dev: x.dev };
+          if (x.to) rec.to = x.to;
+          q.add(rec);
+        });
         r.clear();
       };
     });
@@ -442,6 +468,7 @@ var CONFIG = {
      Toestand en scherm
      ------------------------------------------------------------------ */
   var openSscc = null;            // de pallet die open staat, of null
+  var combine = null;             // combineren bezig: { from: SSCC die leeg wordt, to: doelpallet of null }
   var dlgOpen = false;
   var inp = $('in');
 
@@ -469,11 +496,20 @@ var CONFIG = {
     el.appendChild(document.createTextNode(sscc.slice(to)));
   }
 
+  var combineLabel = null; // tekstknoop van de knop Combineer/Bevestig
   function render() {
-    document.body.classList.toggle('open', !!openSscc);
-    $('state').textContent = openSscc ? 'PALLET OPEN' : 'WACHT OP PALLET';
-    $('sscc').textContent = openSscc ? shortCode(openSscc) : '';
-    fillFullSscc($('ssccfull'), openSscc);
+    var active = openSscc || (combine && combine.from) || null;
+    document.body.classList.toggle('open', !!active);
+    document.body.classList.toggle('combine', !!combine);
+    $('state').textContent = combine ? 'COMBINEER' : openSscc ? 'PALLET OPEN' : 'WACHT OP PALLET';
+    $('sscc').textContent = active ? shortCode(active) : '';
+    fillFullSscc($('ssccfull'), active);
+    $('combto').textContent = combine && combine.to ? '→ op ' + shortCode(combine.to) : '';
+    $('hint').textContent = !combine ? 'Scan nu de LOCATIE'
+      : combine.to ? keyLabel(CONFIG.KEYS_COMBINEREN, 'F5') + ' = bevestig · ' + keyLabel(CONFIG.KEYS_ANNULEREN, 'F8') + ' = annuleer'
+      : 'Scan de pallet waarop alles NU ligt';
+    if (combineLabel) combineLabel.textContent = combine && combine.to ? 'Bevestig' : 'Combineer';
+    $('bCombine').classList.toggle('confirm', !!(combine && combine.to));
 
     var n = snap.queue.length;
     $('queue').textContent = 'WACHTRIJ ' + n;
@@ -578,22 +614,34 @@ var CONFIG = {
       if (!cleaned) return;
       if (lastWriteRaw && cleaned === lastWriteRaw && justWritten()) return;
       lastWriteRaw = '';
-      apply(L.decide(openSscc, L.parseScan(raw, LOGIC_CFG)), cleaned);
+      var parsed = L.parseScan(raw, LOGIC_CFG);
+      apply(combine ? L.decideCombine(combine, parsed, LOGIC_CFG) : L.decide(openSscc, parsed), cleaned);
     });
   }
   function chooseStatus(i) { // sneltoets of knop van een vaste bestemming
     if (dlgOpen) return;
     whenIdle(function () {
-      if (!openSscc && justWritten()) return;
+      if (!openSscc && !combine && justWritten()) return;
       lastWriteRaw = '';
+      if (combine) { apply({ do: 'error', message: 'Combineren bezig', detail: 'Scan de pallet waarop alles nu ligt, of annuleer met ' + keyLabel(CONFIG.KEYS_ANNULEREN, 'F8') + '.' }, ''); return; }
       apply(L.decide(openSscc, { type: 'status', target: STATUSES[i].text }), '');
+    });
+  }
+  function chooseCombine() { // sneltoets of knop Combineer; tijdens het combineren: Bevestig
+    if (dlgOpen) return;
+    whenIdle(function () {
+      if (!openSscc && !combine && justWritten()) return;
+      lastWriteRaw = '';
+      var parsed = { type: 'command', command: 'COMBINEREN' };
+      apply(combine ? L.decideCombine(combine, parsed, LOGIC_CFG) : L.decide(openSscc, parsed), '');
     });
   }
   function cancelPallet() {
     if (dlgOpen) return;
     whenIdle(function () {
       lastWriteRaw = '';
-      apply(L.decide(openSscc, { type: 'command', command: 'ANNULEREN' }), '');
+      var parsed = { type: 'command', command: 'ANNULEREN' };
+      apply(combine ? L.decideCombine(combine, parsed, LOGIC_CFG) : L.decide(openSscc, parsed), '');
     });
   }
 
@@ -601,9 +649,15 @@ var CONFIG = {
     if (d.do === 'open') {
       openSscc = d.sscc; hideFlash(); render(); signal('open');
     } else if (d.do === 'write') {
-      commit(d.sscc, d.target, cleaned);
+      commit(d.sscc, d.target, cleaned, null);
+    } else if (d.do === 'combine_start') {
+      combine = { from: d.sscc, to: null }; openSscc = null; hideFlash(); render(); signal('open');
+    } else if (d.do === 'combine_target') {
+      combine = { from: d.from, to: d.to }; hideFlash(); render(); signal('open');
+    } else if (d.do === 'combine_write') {
+      commit(d.from, d.target, cleaned, d.to);
     } else if (d.do === 'cancel') {
-      openSscc = null; render(); signal('open');
+      openSscc = null; combine = null; render(); signal('open');
       flash('info', 'Geannuleerd', 'Niets weggeschreven', 1500);
     } else if (d.do === 'error') {
       render(); signal('err');
@@ -614,19 +668,21 @@ var CONFIG = {
 
   function newId(ts) { return ts.toString(36) + '-' + randomChars(8); }
 
-  function commit(sscc, target, cleaned) {
+  // Eén rij wegschrijven. "to" is alleen gevuld bij combineren: de SSCC van de doelpallet (kolom G).
+  function commit(sscc, target, cleaned, to) {
     var ts = Date.now(); // moment van de scan op het toestel
     var rec = { id: newId(ts), ts: ts, sscc: String(sscc), loc: String(target), dev: settings.dev };
+    if (to) rec.to = String(to);
     busy = true;
     // 1. Eerst bewaren op het toestel. Pas als dat op schijf staat, bevestigen.
     addScan(rec).then(function () {
-      openSscc = null;
+      openSscc = null; combine = null;
       lastWriteAt = Date.now(); lastWriteRaw = cleaned || '';
       snap.queue = snap.queue.concat([rec]);
-      snap.history = [rec].concat(snap.history).slice(0, 5);
+      snap.history = [rec].concat(snap.history).slice(0, 10);
       storageOk = true;
       render(); signal('ok');
-      flash('ok', shortCode(sscc), '✔ ' + target, 1800);
+      flash('ok', shortCode(sscc), to ? '✔ op ' + shortCode(to) : '✔ ' + target, 1800);
       announce();
       release();
       // 2. Daarna verzenden.
@@ -686,7 +742,11 @@ var CONFIG = {
   }
 
   function sendBatch(url, key, batch) {
-    var payload = batch.map(function (r) { return { id: r.id, ts: r.ts, sscc: r.sscc, loc: r.loc, dev: r.dev }; });
+    var payload = batch.map(function (r) {
+      var s = { id: r.id, ts: r.ts, sscc: r.sscc, loc: r.loc, dev: r.dev };
+      if (r.to) s.to = r.to;
+      return s;
+    });
     return postJson(url, { key: key, scans: payload }).then(function (res) {
       if (!res || !res.ok) return { ok: false, error: (res && res.error) || 'server' };
       var acked = {}, rejMap = {};
@@ -767,6 +827,11 @@ var CONFIG = {
       else if (/^F\d+$/.test(e.key)) e.preventDefault();
       return;
     }
+    if (keyMatches(e, CONFIG.KEYS_COMBINEREN)) {
+      e.preventDefault(); e.stopPropagation();
+      if (!e.repeat) { inp.value = ''; chooseCombine(); }
+      return;
+    }
     for (var k = 0; k < STATUSES.length; k++) {
       if (keyMatches(e, STATUSES[k].keys)) { e.preventDefault(); e.stopPropagation(); if (!e.repeat) { inp.value = ''; chooseStatus(k); } return; }
     }
@@ -810,7 +875,7 @@ var CONFIG = {
     window.addEventListener('popstate', function () {
       armBack();
       if (dlgOpen) { closeDialog(); return; }
-      if (openSscc) { inp.value = ''; hideFlash(); cancelPallet(); }
+      if (openSscc || combine) { inp.value = ''; hideFlash(); cancelPallet(); }
     });
   }
   inp.addEventListener('input', function () { if ($('flash').className === 'err') hideFlash(); });
@@ -832,22 +897,25 @@ var CONFIG = {
     el.addEventListener('pointerdown', function (e) { e.preventDefault(); unlockAudio(); });
     el.addEventListener('click', function (e) { e.preventDefault(); fn(); keepFocus(); });
   }
-  // Eén knop per vaste bestemming, plus Annuleer.
+  // Eén knop per vaste bestemming, plus Combineer en Annuleer.
   function addActionButton(id, keyText, label, fn) {
     var b = document.createElement('button');
     b.type = 'button'; b.id = id;
     if (keyText) { var k = document.createElement('span'); k.className = 'k'; k.textContent = keyText; b.appendChild(k); }
-    b.appendChild(document.createTextNode(label));
+    var txt = document.createTextNode(label);
+    b.appendChild(txt);
     $('actions').appendChild(b);
     bindButton(b, fn);
+    return txt;
   }
   STATUSES.forEach(function (st, i) {
     addActionButton('bStatus' + i, st.keys && st.keys.length ? keyLabel(st.keys, '') : '', st.text, function () { inp.value = ''; chooseStatus(i); });
   });
+  combineLabel = addActionButton('bCombine', keyLabel(CONFIG.KEYS_COMBINEREN, 'F5'), 'Combineer', function () { inp.value = ''; chooseCombine(); });
   addActionButton('bCancel', keyLabel(CONFIG.KEYS_ANNULEREN, 'F8'), 'Annuleer', function () { inp.value = ''; hideFlash(); cancelPallet(); });
   // Smal scherm: drie knoppen per rij, Annuleer vult de rest van de laatste rij. Breed scherm: alles op één rij.
-  $('actions').style.setProperty('--n', String(STATUSES.length + 1));
-  $('actions').style.setProperty('--cancel-span', String(3 - (STATUSES.length % 3)));
+  $('actions').style.setProperty('--n', String(STATUSES.length + 2));
+  $('actions').style.setProperty('--cancel-span', String(3 - ((STATUSES.length + 1) % 3)));
   // inputmode "text": actief toetsenbord (IME) op het veld, dan altijd focus.
   // inputmode "none": geen schermtoetsenbord; de scanner moet toetsaanslagen sturen.
   function setInputMode(text) {
@@ -863,7 +931,7 @@ var CONFIG = {
      Instellingen per toestel
      ------------------------------------------------------------------ */
   function dumpText() {
-    var line = function (r, tag) { return [dateTimeText(r.ts), r.sscc, r.loc, r.id, r.dev || '', tag + (r.reason ? ': ' + r.reason : '')].join('\t'); };
+    var line = function (r, tag) { return [dateTimeText(r.ts), r.sscc, r.loc, r.id, r.dev || '', r.to || '', tag + (r.reason ? ': ' + r.reason : '')].join('\t'); };
     var out = snap.queue.map(function (r) { return line(r, 'wacht'); }).concat(snap.rejected.map(function (r) { return line(r, 'geweigerd'); }));
     return out.length ? out.join('\n') : '(leeg)';
   }

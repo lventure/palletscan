@@ -26,6 +26,8 @@
     var A = '340123451234567895';
     var B = '006141411234567890'; // begint zelf met 00: mag niet ingekort worden
     var C = '354123450000000014';
+    var P1 = '154199802502004042'; // echte nummers van DeVe-Pack: korte code 0404
+    var P2 = '154199802502008620'; // korte code 0862
 
     // ---------- Controlecijfer ----------
     test('controlecijfer: GS1-voorbeeld 34012345123456789 -> 5', function () { eq(L.gs1CheckDigit('34012345123456789'), 5); });
@@ -85,6 +87,23 @@
     test('SSCC: letters in de code -> fout', function () { eq(errCode('0034012345123456789A'), 'unknown'); });
     test('lege invoer -> fout', function () { eq(errCode(''), 'empty'); eq(errCode('   '), 'empty'); eq(errCode(null), 'empty'); });
 
+    // ---------- Korte palletcode ----------
+    // De vier laatste cijfers vóór het controlecijfer; dit is wat de magazijnier groot ziet.
+    test('korte code: cijfers 14 tot 17 van de SSCC', function () {
+      var ex = { '154199802502004042': '0404', '154199802502008620': '0862', '154199802502012290': '1229', '154199802502010609': '1060',
+                 '154199802502011316': '1131', '154199802502010968': '1096', '154199802502012580': '1258', '154199802502012535': '1253',
+                 '154199802502010456': '1045', '154199802502011828': '1182', '154199802502009207': '0920', '340123451234567895': '6789' };
+      Object.keys(ex).forEach(function (k) { eq(L.shortCode(k), ex[k]); });
+    });
+    test('korte code: positie en lengte instelbaar', function () {
+      eq(L.shortCode('154199802502004042', { shortCodeFrom: 12, shortCodeLen: 6 }), '200404');
+      eq(L.shortCode('154199802502004042', { shortCodeFrom: 1, shortCodeLen: 2 }), '15');
+      eq(L.shortCode('', null), ''); eq(L.shortCode(null, null), '');
+    });
+    test('tweede pallet: foutmelding noemt de korte code van de open pallet', function () {
+      eq(L.decide('154199802502004042', { type: 'sscc', sscc: '154199802502008620' }).detail.indexOf('…0404') >= 0, true);
+    });
+
     // ---------- Locatie ontleden ----------
     // De barcode op het rek bevat alleen de palletplaats: één letter + twee cijfers (A03, B48, C13, D94).
     test('locatie: letter + twee cijfers', function () { eq(loc('A03'), 'A03'); eq(loc('B48'), 'B48'); eq(loc('C13'), 'C13'); eq(loc('D94'), 'D94'); eq(loc('A04'), 'A04'); });
@@ -125,25 +144,28 @@
     // ---------- Vaste bestemmingen (sneltoetsen) ----------
     test('bestemming: commando-barcodes', function () {
       eq(L.parseScan('CMDUIT'), { type: 'status', target: 'Uitgenomen' });
-      eq(L.parseScan('cmdverz'), { type: 'status', target: 'Verzonden' });
-      eq(L.parseScan('CMDGANG'), { type: 'status', target: 'Gang' });
-      eq(L.parseScan(']C0CMDTEE'), { type: 'status', target: 'TEE' });
+      eq(L.parseScan('cmdklaar'), { type: 'status', target: 'Klaar' });
+      eq(L.parseScan('klaar'), { type: 'status', target: 'Klaar' });
+      eq(L.parseScan('CMDBUFFER'), { type: 'status', target: 'Buffer' });
+      eq(L.parseScan('cmdbuffer'), { type: 'status', target: 'Buffer' });
+      eq(L.parseScan(']C0CMDBUFFER'), { type: 'status', target: 'Buffer' });
       eq(L.parseScan(']C1CMDESC'), { type: 'command', command: 'ANNULEREN' });
     });
     test('bestemming: de naam zelf scannen of typen werkt ook', function () {
-      eq(L.parseScan('TEE'), { type: 'status', target: 'TEE' });
-      eq(L.parseScan('tee'), { type: 'status', target: 'TEE' });
-      eq(L.parseScan('gang'), { type: 'status', target: 'Gang' });
+      eq(L.parseScan('buffer'), { type: 'status', target: 'Buffer' });
+      eq(L.parseScan('BUFFER'), { type: 'status', target: 'Buffer' });
       eq(L.parseScan(' Uitgenomen\r'), { type: 'status', target: 'Uitgenomen' });
     });
-    test('bestemming: "Klaar" bestaat niet meer', function () { eq(errCode('CMDKLAAR'), 'unknown'); eq(errCode('Klaar'), 'unknown'); });
-    test('bestemming: bijna-namen zijn geen bestemming', function () { eq(errCode('TE'), 'unknown'); eq(errCode('TEEE'), 'unknown'); eq(errCode('GANGEN'), 'unknown'); eq(errCode('CMD'), 'unknown'); });
+    test('bestemming: "Verzonden", "TEE", "Gang 1" en "Gang 2" bestaan niet meer', function () {
+      eq(errCode('CMDVERZ'), 'unknown'); eq(errCode('Verzonden'), 'unknown'); eq(errCode('CMDTEE'), 'unknown'); eq(errCode('TEE'), 'unknown'); eq(errCode('CMDGANG1'), 'unknown'); eq(errCode('CMDGANG2'), 'unknown'); eq(errCode('Gang 1'), 'unknown'); eq(errCode('Gang 2'), 'unknown');
+    });
+    test('bestemming: bijna-namen zijn geen bestemming', function () { eq(errCode('BUF'), 'unknown'); eq(errCode('KLAARR'), 'unknown'); eq(errCode('BUFFERS'), 'unknown'); eq(errCode('CMD'), 'unknown'); });
     test('bestemming: lijst instelbaar (toevoegen, hernoemen, weghalen)', function () {
       var cfg = { statuses: [{ text: 'Kade 2', barcode: 'CMDKADE' }, { text: 'Blok', barcode: '' }] };
       eq(L.parseScan('CMDKADE', cfg), { type: 'status', target: 'Kade 2' });
       eq(L.parseScan('kade2', cfg), { type: 'status', target: 'Kade 2' });
       eq(L.parseScan('BLOK', cfg), { type: 'status', target: 'Blok' });
-      eq(errCode('CMDTEE', cfg), 'unknown'); eq(errCode('TEE', cfg), 'unknown');
+      eq(errCode('CMDBUFFER', cfg), 'unknown'); eq(errCode('Buffer', cfg), 'unknown');
       eq(loc('A03', cfg), 'A03'); eq(sscc(A, cfg), A);
     });
     test('bestemming: lege lijst of lege regels geven geen fout', function () {
@@ -160,14 +182,13 @@
     test('flow: locatie met open pallet schrijft weg', function () { eq(step(A, 'A03'), { do: 'write', sscc: A, target: 'A03' }); eq(step(A, 'a04'), { do: 'write', sscc: A, target: 'A04' }); });
     test('flow: bestemming met open pallet schrijft de naam weg', function () {
       eq(L.decide(A, { type: 'status', target: 'Uitgenomen' }), { do: 'write', sscc: A, target: 'Uitgenomen' });
-      eq(L.decide(A, { type: 'status', target: 'Verzonden' }), { do: 'write', sscc: A, target: 'Verzonden' });
-      eq(L.decide(A, { type: 'status', target: 'Gang' }), { do: 'write', sscc: A, target: 'Gang' });
-      eq(L.decide(A, { type: 'status', target: 'TEE' }), { do: 'write', sscc: A, target: 'TEE' });
+      eq(L.decide(A, { type: 'status', target: 'Klaar' }), { do: 'write', sscc: A, target: 'Klaar' });
+      eq(L.decide(A, { type: 'status', target: 'Buffer' }), { do: 'write', sscc: A, target: 'Buffer' });
     });
     test('flow: commando-barcode of getypte naam met open pallet', function () {
-      eq(step(A, 'CMDGANG'), { do: 'write', sscc: A, target: 'Gang' });
-      eq(step(A, 'CMDTEE'), { do: 'write', sscc: A, target: 'TEE' });
-      eq(step(A, 'tee'), { do: 'write', sscc: A, target: 'TEE' });
+      eq(step(A, 'CMDBUFFER'), { do: 'write', sscc: A, target: 'Buffer' });
+      eq(step(A, 'buffer'), { do: 'write', sscc: A, target: 'Buffer' });
+      eq(step(A, 'klaar'), { do: 'write', sscc: A, target: 'Klaar' });
     });
     test('flow: Esc met open pallet annuleert, zonder open pallet gebeurt niets', function () {
       eq(L.decide(A, { type: 'command', command: 'ANNULEREN' }), { do: 'cancel', sscc: A });
@@ -179,12 +200,67 @@
     test('flow: locatie zonder open pallet -> fout', function () { eq(step(null, 'A03').do, 'error'); eq(step(null, 'd94').do, 'error'); });
     test('flow: bestemming zonder open pallet -> fout', function () {
       eq(L.decide(null, { type: 'status', target: 'Uitgenomen' }).do, 'error');
-      eq(L.decide(null, { type: 'status', target: 'TEE' }).do, 'error');
-      eq(step(null, 'CMDGANG').do, 'error'); eq(step(null, 'TEE').do, 'error');
+      eq(step(null, 'CMDBUFFER').do, 'error'); eq(step(null, 'Klaar').do, 'error');
     });
     test('flow: ongeldige scan is altijd een fout, met of zonder open pallet', function () {
       eq(step(null, '340123451234567890').do, 'error'); eq(step(A, '5412345678908').do, 'error'); eq(step(A, 'A3').do, 'error'); eq(step(A, 'LOCA03').do, 'error');
-      eq(step(A, 'CMDKLAAR').do, 'error');
+      eq(step(A, 'CMDVERZ').do, 'error'); eq(step(A, 'CMDGANG1').do, 'error');
+    });
+
+    // ---------- Combineren ----------
+    // Scan de pallet die leeg is, Combineer, scan de pallet waarop alles nu ligt, bevestig.
+    var COMB = { type: 'command', command: 'COMBINEREN' };
+    var ESC = { type: 'command', command: 'ANNULEREN' };
+    function cstep(combine, raw) { return L.decideCombine(combine, L.parseScan(raw)); }
+    test('combineren: commando-barcode CMDCOMB', function () {
+      eq(L.parseScan('CMDCOMB'), COMB); eq(L.parseScan(']C1cmdcomb'), COMB);
+      eq(L.parseScan('CMDCOMB', { barcodeCombineren: 'CMDSAMEN' }).type, 'error');
+      eq(L.parseScan('CMDSAMEN', { barcodeCombineren: 'CMDSAMEN' }), COMB);
+    });
+    test('combineren: tekst voor kolom C', function () {
+      eq(L.combineTarget(P2), 'Samengevoegd met 0862');
+      eq(L.combineTarget(P2, { combineText: 'Op pallet' }), 'Op pallet 0862');
+      eq(L.combineTarget(A, { shortCodeFrom: 1, shortCodeLen: 3 }), 'Samengevoegd met 340');
+    });
+    test('combineren: Combineer met open pallet start, zonder open pallet is een fout', function () {
+      eq(L.decide(P1, COMB), { do: 'combine_start', sscc: P1 });
+      eq(step(P1, 'CMDCOMB'), { do: 'combine_start', sscc: P1 });
+      eq(L.decide(null, COMB).do, 'error'); eq(step(null, 'CMDCOMB').do, 'error');
+    });
+    test('combineren: doelpallet scannen', function () {
+      eq(cstep({ from: P1, to: null }, P2), { do: 'combine_target', from: P1, to: P2 });
+      eq(cstep({ from: P1, to: null }, '00' + P2), { do: 'combine_target', from: P1, to: P2 });
+    });
+    test('combineren: dezelfde pallet als doel is een fout, dezelfde doelpallet opnieuw doet niets', function () {
+      eq(cstep({ from: P1, to: null }, P1).do, 'error');
+      eq(cstep({ from: P1, to: P2 }, P1).do, 'error');
+      eq(cstep({ from: P1, to: P2 }, P2), { do: 'ignore' });
+    });
+    test('combineren: een andere doelpallet scannen vervangt de vorige', function () {
+      eq(cstep({ from: P1, to: P2 }, A), { do: 'combine_target', from: P1, to: A });
+    });
+    test('combineren: bevestigen schrijft weg, zonder doelpallet is een fout', function () {
+      eq(L.decideCombine({ from: P1, to: P2 }, COMB), { do: 'combine_write', from: P1, to: P2, target: 'Samengevoegd met 0862' });
+      eq(cstep({ from: P1, to: P2 }, 'CMDCOMB').do, 'combine_write');
+      eq(L.decideCombine({ from: P1, to: null }, COMB).do, 'error');
+      eq(L.decideCombine({ from: P1, to: P2 }, COMB, { combineText: 'Op pallet' }).target, 'Op pallet 0862');
+    });
+    test('combineren: annuleren in elke stap', function () {
+      eq(L.decideCombine({ from: P1, to: null }, ESC), { do: 'cancel', sscc: P1 });
+      eq(L.decideCombine({ from: P1, to: P2 }, ESC), { do: 'cancel', sscc: P1 });
+      eq(cstep({ from: P1, to: P2 }, 'CMDESC'), { do: 'cancel', sscc: P1 });
+    });
+    test('combineren: locatie, bestemming of onbekende barcode is een fout, en verandert niets', function () {
+      eq(cstep({ from: P1, to: null }, 'A03').do, 'error');
+      eq(cstep({ from: P1, to: P2 }, 'A03').do, 'error');
+      eq(cstep({ from: P1, to: null }, 'CMDKLAAR').do, 'error');
+      eq(L.decideCombine({ from: P1, to: null }, { type: 'status', target: 'Klaar' }).do, 'error');
+      eq(cstep({ from: P1, to: null }, 'XYZ').do, 'error');
+      eq(cstep({ from: P1, to: null }, '340123451234567890').do, 'error'); // fout controlecijfer
+    });
+    test('combineren: zonder bronpallet valt decideCombine terug op de gewone flow', function () {
+      eq(L.decideCombine(null, L.parseScan(A)), { do: 'open', sscc: A });
+      eq(L.decideCombine({ from: null, to: null }, L.parseScan('A03')).do, 'error');
     });
 
     return results;

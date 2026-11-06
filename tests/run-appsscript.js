@@ -1,109 +1,114 @@
-#!/usr/bin/env node
-/*
- * Test van apps-script/Code.gs tegen een nagebootste Google Sheet.
- * Draaien met:  node tests/run-appsscript.js
- */
+/* Test van apps-script/Code.gs tegen een nagebootste Sheet: node tests/run-appsscript.js */
 'use strict';
+var makeWorld = require('./mock-sheet.js').makeWorld;
+var results = [];
+function test(name, fn) { try { fn(); results.push({ name: name, ok: true }); } catch (e) { results.push({ name: name, ok: false, detail: String(e && e.message || e) }); } }
+function eq(a, b, label) { var x = JSON.stringify(a), y = JSON.stringify(b); if (x !== y) throw new Error((label ? label + ': ' : '') + 'verwacht ' + y + ', kreeg ' + x); }
 
-const { makeWorld } = require('./mock-sheet.js');
+var KEY = 'test-sleutel-1234567890';
+var A = '340123451234567895', B = '354123450000000014', P1 = '154199802502004042', P2 = '154199802502008620';
+var TS = Date.UTC(2026, 10, 6, 9, 30, 0); // 6 nov 2026 10:30 Brussel
+function scan(id, sscc, loc, ts, extra) { var s = { id: id, ts: ts || TS, sscc: sscc, loc: loc, dev: 'KEY1' }; if (extra) for (var k in extra) s[k] = extra[k]; return s; }
+var OLD_HEADERS = ['Datum & uur', 'Pallet-SSCC', 'Palletplaats', 'ScanID', 'Toestel', 'Ontvangen'];
 
-let failed = 0, total = 0;
-function test(name, fn) {
-  total++;
-  try { fn(); console.log('  ok    ' + name); }
-  catch (e) { failed++; console.log('  FOUT  ' + name + '\n        ' + (e && e.message)); }
-}
-function eq(a, b, label) { const x = JSON.stringify(a), y = JSON.stringify(b); if (x !== y) throw new Error((label ? label + ': ' : '') + 'verwacht ' + y + ', kreeg ' + x); }
+test('verkeerde sleutel wordt geweigerd', function () {
+  var w = makeWorld({ key: KEY });
+  eq(w.post({ key: 'fout', scans: [scan('a', A, 'A03')] }), { ok: false, error: 'unauthorized' });
+  eq(w.sheet(), null);
+});
+test('de placeholder-sleutel werkt nooit', function () {
+  var w = makeWorld({});
+  eq(w.post({ key: 'VERVANG-DIT-DOOR-EEN-EIGEN-SLEUTEL', ping: true }).ok, false);
+});
+test('ping schrijft niets', function () {
+  var w = makeWorld({ key: KEY });
+  eq(w.post({ key: KEY, ping: true }), { ok: true, pong: true });
+  eq(w.sheet(), null);
+});
+test('nieuw tabblad krijgt 7 kopjes, incl. Doel-SSCC', function () {
+  var w = makeWorld({ key: KEY });
+  w.post({ key: KEY, scans: [] });
+  eq(w.sheet().rows[0], ['Datum & uur', 'Pallet-SSCC', 'Palletplaats', 'ScanID', 'Toestel', 'Ontvangen', 'Doel-SSCC']);
+  eq(w.sheet().frozen, 1);
+});
+test('bestaand tabblad van vóór 1.7.0 krijgt alleen kopje G erbij', function () {
+  var w = makeWorld({ key: KEY, scans: [OLD_HEADERS.slice(), [46000, A, 'A03', 'oud1', 'KEY1', 46000]] });
+  w.post({ key: KEY, scans: [] });
+  eq(w.sheet().rows[0], OLD_HEADERS.concat(['Doel-SSCC']));
+  eq(w.sheet().rows[1], [46000, A, 'A03', 'oud1', 'KEY1', 46000]); // oude rij ongemoeid
+});
+test('gewone scan: rij met 7 kolommen, G leeg, SSCC als tekst', function () {
+  var w = makeWorld({ key: KEY });
+  var r = w.post({ key: KEY, scans: [scan('a', A, 'A03')] });
+  eq(r.ok, true); eq(r.written, ['a']); eq(r.rejected, []);
+  var row = w.sheet().rows[1];
+  eq(row.length, 7); eq(row[1], A); eq(typeof row[1], 'string'); eq(row[2], 'A03'); eq(row[3], 'a'); eq(row[4], 'KEY1'); eq(row[6], '');
+  eq(w.sheet().formats['2,2'], '@'); eq(w.sheet().formats['2,7'], '@');
+});
+test('datum in kolom A is Belgische kloktijd als Sheets-getal', function () {
+  var w = makeWorld({ key: KEY });
+  w.post({ key: KEY, scans: [scan('a', A, 'A03', TS)] });
+  var serial = w.sheet().rows[1][0];
+  var wall = Date.UTC(2026, 10, 6, 10, 30, 0); // 10:30 Brussel (CET)
+  eq(Math.abs(serial - (wall - Date.UTC(1899, 11, 30)) / 86400000) < 1e-9, true);
+});
+test('combineren: doel-SSCC komt in kolom G als tekst', function () {
+  var w = makeWorld({ key: KEY });
+  var r = w.post({ key: KEY, scans: [scan('c1', P1, 'Samengevoegd met 0862', TS, { to: P2 })] });
+  eq(r.written, ['c1']);
+  var row = w.sheet().rows[1];
+  eq(row[1], P1); eq(row[2], 'Samengevoegd met 0862'); eq(row[6], P2); eq(typeof row[6], 'string');
+});
+test('combineren: ongeldige of gelijke doel-SSCC wordt geweigerd', function () {
+  var w = makeWorld({ key: KEY });
+  var r = w.post({ key: KEY, scans: [
+    scan('c1', P1, 'Samengevoegd met 0862', TS, { to: '154199802502008621' }),
+    scan('c2', P1, 'Samengevoegd met 0404', TS, { to: P1 }),
+    scan('c3', P1, 'Samengevoegd met 0862', TS, { to: 12345 }),
+    scan('c4', P1, 'A03', TS, { to: '' })
+  ] });
+  eq(r.written, ['c4']);
+  eq(r.rejected.map(function (x) { return x.id + ':' + x.reason; }), ['c1:doel-SSCC ongeldig', 'c2:doelpallet is dezelfde pallet', 'c3:doel-SSCC ongeldig']);
+});
+test('ongeldige scans worden geweigerd, de rest geschreven', function () {
+  var w = makeWorld({ key: KEY });
+  var r = w.post({ key: KEY, scans: [scan('a', A, 'A03'), scan('b', '340123451234567890', 'A03'), scan('c', B, '=SUM(1)'), scan('d', B, 'TEE'), { id: 'e' }] });
+  eq(r.written, ['a', 'd']);
+  eq(r.rejected.map(function (x) { return x.reason; }), ['SSCC ongeldig', 'palletplaats ongeldig', 'tijdstip ongeldig']);
+  eq(w.sheet().getLastRow(), 3);
+});
+test('dubbele ScanID geeft geen dubbele rij, ook over verzendingen heen', function () {
+  var w = makeWorld({ key: KEY });
+  w.post({ key: KEY, scans: [scan('a', A, 'A03'), scan('b', B, 'B48')] });
+  var r = w.post({ key: KEY, scans: [scan('b', B, 'B48'), scan('c', A, 'Klaar')] });
+  eq(r.written, ['c']); eq(r.duplicates, ['b']);
+  eq(w.sheet().getLastRow(), 4);
+});
+test('volgorde van de rijen is de volgorde van de scans', function () {
+  var w = makeWorld({ key: KEY });
+  w.post({ key: KEY, scans: [scan('1', A, 'A03'), scan('2', A, 'Uitgenomen'), scan('3', B, 'C13')] });
+  eq(w.sheet().rows.slice(1).map(function (r) { return r[3]; }), ['1', '2', '3']);
+});
+test('te veel scans in één verzending', function () {
+  var w = makeWorld({ key: KEY });
+  var many = []; for (var i = 0; i < 201; i++) many.push(scan('s' + i, A, 'A03'));
+  eq(w.post({ key: KEY, scans: many }), { ok: false, error: 'too_many' });
+});
+test('vergrendeling bezet: busy, niets geschreven', function () {
+  var w = makeWorld({ key: KEY, locked: true });
+  eq(w.post({ key: KEY, scans: [scan('a', A, 'A03')] }), { ok: false, error: 'busy' });
+});
+test('toestelnaam wordt opgeschoond', function () {
+  var w = makeWorld({ key: KEY });
+  w.post({ key: KEY, scans: [scan('a', A, 'A03', TS, { dev: '=HEF<truck>1' })] });
+  eq(w.sheet().rows[1][4], 'HEFtruck1');
+});
+test('doGet toont alleen dat het script draait', function () {
+  var w = makeWorld({ key: KEY });
+  eq(w.ctx.doGet().text, 'Palletscan: het script is actief.');
+});
 
-const A = '340123451234567895', B = '006141411234567890';
-// 30/09/2026 14:00:00 Belgische zomertijd = 12:00:00 UTC
-const TS = Date.UTC(2026, 8, 30, 12, 0, 0);
-const scan = (id, sscc, loc, ts) => ({ id, ts: ts || TS, sscc, loc, dev: 'MC1' });
-const serialToText = n => new Date(Math.round(n * 86400000) + Date.UTC(1899, 11, 30)).toISOString().slice(0, 19).replace('T', ' ');
-
-test('verkeerde sleutel wordt geweigerd en schrijft niets', () => {
-  const w = makeWorld();
-  eq(w.post({ key: 'fout', scans: [scan('a', A, '3.12')] }), { ok: false, error: 'unauthorized' });
-  eq(w.post({ scans: [scan('a', A, '3.12')] }).error, 'unauthorized');
-  eq(w.sheets['Scans'], undefined);
-});
-test('niet-vervangen standaardsleutel wordt altijd geweigerd', () => {
-  const w = makeWorld();
-  w.ctx.SHARED_KEY = 'VERVANG-DIT-DOOR-EEN-EIGEN-SLEUTEL';
-  eq(w.post({ key: 'VERVANG-DIT-DOOR-EEN-EIGEN-SLEUTEL', ping: true }).error, 'unauthorized');
-});
-test('ping schrijft niets', () => {
-  const w = makeWorld();
-  eq(w.post({ key: 'test-sleutel', ping: true }), { ok: true, pong: true });
-  eq(w.sheets['Scans'], undefined);
-});
-test('tabblad Scans wordt aangemaakt met kopregel; ander tabblad blijft onaangeroerd', () => {
-  const w = makeWorld();
-  const r = w.post({ key: 'test-sleutel', scans: [scan('a', A, '3.12')] });
-  eq(r, { ok: true, written: ['a'], duplicates: [], rejected: [] });
-  eq(w.sheets['Scans'].cells[0], ['Datum & uur', 'Pallet-SSCC', 'Palletplaats', 'ScanID', 'Toestel', 'Ontvangen']);
-  eq(w.sheets['Stock'].cells.length, 0);
-});
-test('SSCC en palletplaats blijven tekst (geen precisieverlies, "3.10" blijft "3.10")', () => {
-  const w = makeWorld();
-  w.post({ key: 'test-sleutel', scans: [scan('a', B, '3.10')] });
-  const row = w.sheets['Scans'].cells[1];
-  eq(row[1], B); eq(typeof row[1], 'string');
-  eq(row[2], '3.10'); eq(typeof row[2], 'string');
-  eq(row[3], 'a'); eq(row[4], 'MC1');
-});
-test('datum is een echte datum-tijdwaarde in Belgische tijd (zomer en winter)', () => {
-  const w = makeWorld();
-  w.post({ key: 'test-sleutel', scans: [scan('z', A, '3.12', TS), scan('w', A, 'Verzonden', Date.UTC(2026, 0, 15, 12, 0, 0))] });
-  const c = w.sheets['Scans'].cells;
-  eq(typeof c[1][0], 'number');
-  eq(serialToText(c[1][0]), '2026-09-30 14:00:00', 'zomertijd');
-  eq(serialToText(c[2][0]), '2026-01-15 13:00:00', 'wintertijd');
-  eq(typeof c[1][5], 'number');
-});
-test('herhaalde verzending geeft geen dubbele rij', () => {
-  const w = makeWorld();
-  w.post({ key: 'test-sleutel', scans: [scan('a', A, '3.12')] });
-  const r = w.post({ key: 'test-sleutel', scans: [scan('a', A, '3.12'), scan('b', A, 'Uitgenomen')] });
-  eq(r, { ok: true, written: ['b'], duplicates: ['a'], rejected: [] });
-  eq(w.sheets['Scans'].getLastRow(), 3);
-});
-test('dubbele ScanID binnen één verzending wordt één rij', () => {
-  const w = makeWorld();
-  const r = w.post({ key: 'test-sleutel', scans: [scan('a', A, '3.12'), scan('a', A, '3.12')] });
-  eq(r.written, ['a']); eq(r.duplicates, ['a']); eq(w.sheets['Scans'].getLastRow(), 2);
-});
-test('rijen worden onderaan toegevoegd, in volgorde, bestaande rijen blijven gelijk', () => {
-  const w = makeWorld();
-  w.post({ key: 'test-sleutel', scans: [scan('a', A, '1.01'), scan('b', A, '1.02')] });
-  const before = JSON.stringify(w.sheets['Scans'].cells.slice(0, 3));
-  w.post({ key: 'test-sleutel', scans: [scan('c', B, '1.03'), scan('d', B, 'Verzonden'), scan('e', B, '1.05')] });
-  eq(JSON.stringify(w.sheets['Scans'].cells.slice(0, 3)), before);
-  eq(w.sheets['Scans'].cells.slice(1).map(r => r[3]), ['a', 'b', 'c', 'd', 'e']);
-});
-test('ongeldige scan wordt geweigerd zonder de rest te blokkeren', () => {
-  const w = makeWorld();
-  const r = w.post({ key: 'test-sleutel', scans: [scan('a', '340123451234567890', '3.12'), scan('b', A, ''), { id: 'c', ts: 'x', sscc: A, loc: '1.01' }, scan('d', A, '3.12'), { id: 'e', ts: 1e20, sscc: A, loc: '1.01' }] });
-  eq(r.written, ['d']);
-  eq(r.rejected.map(x => x.id), ['a', 'b', 'c', 'e']);
-  eq(w.sheets['Scans'].getLastRow(), 2);
-});
-test('onleesbaar bericht geeft een nette fout', () => {
-  const w = makeWorld();
-  eq(w.post('dit is geen json').ok, false);
-});
-test('een plaats of toestelnaam kan nooit een formule worden', () => {
-  const w = makeWorld();
-  const r = w.post({ key: 'test-sleutel', scans: [scan('a', A, '=1+1'), scan('b', A, '+32475'), scan('c', A, '-1'), { id: 'd', ts: TS, sscc: A, loc: 'A-01/2', dev: '=HYPERLINK("x")' }] });
-  eq(r.written, ['d']); eq(r.rejected.map(x => x.id), ['a', 'b', 'c']);
-  eq(w.sheets['Scans'].cells[1][2], 'A-01/2'); eq(w.sheets['Scans'].cells[1][4], 'HYPERLINKx');
-  eq(w.sheets['Scans'].formats[1][2], '@');
-});
-test('ScanID met een vreemde naam wordt niet als dubbel gezien', () => {
-  const w = makeWorld();
-  const r = w.post({ key: 'test-sleutel', scans: [scan('constructor', A, '1.01'), scan('toString', A, '1.02'), scan('__proto__', A, '1.03')] });
-  eq(r.written, ['constructor', 'toString', '__proto__']); eq(r.duplicates, []);
-});
-
-console.log('\n' + (total - failed) + ' van ' + total + ' tests geslaagd.');
-process.exit(failed ? 1 : 0);
+var ok = 0;
+results.forEach(function (r) { if (r.ok) { ok++; console.log('  ok    ' + r.name); } else console.log('  FOUT  ' + r.name + '\n        ' + r.detail); });
+console.log('\n' + ok + ' van ' + results.length + ' tests geslaagd.');
+process.exit(ok === results.length ? 0 : 1);

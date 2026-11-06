@@ -17,10 +17,11 @@
     statuses: [
       { text: 'Klaar', barcode: 'CMDKLAAR' },
       { text: 'Uitgenomen', barcode: 'CMDUIT' },
-      { text: 'TEE', barcode: 'CMDTEE' },
       { text: 'Buffer', barcode: 'CMDBUFFER' }
     ],
     barcodeAnnuleren: 'CMDESC',
+    barcodeCombineren: 'CMDCOMB',                // commando-barcode voor Combineer (reserve voor de toets)
+    combineText: 'Samengevoegd met',             // kolom C bij combineren: deze tekst + korte code van de doelpallet
     shortCodeFrom: 14,                           // korte palletcode: cijfers 14 tot 17 van de SSCC
     shortCodeLen: 4                              // (de vier laatste vóór het controlecijfer)
   };
@@ -68,7 +69,7 @@
    *   { type: 'sscc',     sscc: '18 cijfers' }
    *   { type: 'location', location: 'A03' }
    *   { type: 'status',   target: 'Buffer' }           een vaste bestemming uit de lijst
-   *   { type: 'command',  command: 'ANNULEREN' }
+   *   { type: 'command',  command: 'ANNULEREN' | 'COMBINEREN' }
    *   { type: 'error',    code, message, detail }
    */
   function parseScan(raw, cfg) {
@@ -79,7 +80,7 @@
     var shown = s.length > 30 ? s.slice(0, 30) + '…' : s;
 
     // 1. Vaste bestemmingen: de commando-barcode (reserve voor de sneltoets),
-    //    of exact de naam zelf, gescand of getypt (bv. "TEE").
+    //    of exact de naam zelf, gescand of getypt (bv. "Buffer").
     var list = Array.isArray(c.statuses) ? c.statuses : [], i, st;
     for (i = 0; i < list.length; i++) {
       st = list[i];
@@ -90,6 +91,7 @@
       }
     }
     if (c.barcodeAnnuleren && upper === String(c.barcodeAnnuleren).toUpperCase()) return { type: 'command', command: 'ANNULEREN' };
+    if (c.barcodeCombineren && upper === String(c.barcodeCombineren).toUpperCase()) return { type: 'command', command: 'COMBINEREN' };
 
     var pattern = new RegExp(c.locationPattern);
 
@@ -128,14 +130,21 @@
 
   function tail(sscc) { return '…' + shortCode(sscc); }
 
+  /* Wat in kolom C komt bij combineren: "Samengevoegd met 0862". */
+  function combineTarget(toSscc, cfg) {
+    var c = withDefaults(cfg);
+    return String(c.combineText) + ' ' + shortCode(toSscc, c);
+  }
+
   /*
    * Beslissen wat er gebeurt, gegeven de open pallet (SSCC of null) en een
    * ontlede scan. Resultaat is één van:
-   *   { do: 'open',   sscc }
-   *   { do: 'write',  sscc, target }      target = locatie of een vaste bestemming (bv. "Buffer")
-   *   { do: 'cancel', sscc }
-   *   { do: 'ignore' }                    niets doen (bv. dezelfde pallet opnieuw gescand)
-   *   { do: 'error',  message, detail }
+   *   { do: 'open',          sscc }
+   *   { do: 'write',         sscc, target }   target = locatie of een vaste bestemming (bv. "Buffer")
+   *   { do: 'combine_start', sscc }           Combineer gedrukt: deze pallet wordt leeg, scan nu de doelpallet
+   *   { do: 'cancel',        sscc }
+   *   { do: 'ignore' }                        niets doen (bv. dezelfde pallet opnieuw gescand)
+   *   { do: 'error',         message, detail }
    */
   function decide(openSscc, parsed) {
     if (!parsed || parsed.type === 'error') {
@@ -157,7 +166,41 @@
     if (parsed.type === 'command' && parsed.command === 'ANNULEREN') {
       return openSscc ? { do: 'cancel', sscc: openSscc } : { do: 'ignore' };
     }
+    if (parsed.type === 'command' && parsed.command === 'COMBINEREN') {
+      if (!openSscc) return { do: 'error', message: 'Eerst pallet scannen', detail: 'Scan eerst de pallet die leeg is, druk dan Combineer.' };
+      return { do: 'combine_start', sscc: openSscc };
+    }
     return { do: 'error', message: 'Onbekende invoer', detail: '' };
+  }
+
+  /*
+   * Beslissen tijdens het combineren. "combine" is { from, to }: from is de
+   * pallet die leeg wordt, to de doelpallet (null zolang die niet gescand is).
+   * Resultaat is één van:
+   *   { do: 'combine_target', from, to }           doelpallet gescand (of vervangen): wacht op bevestiging
+   *   { do: 'combine_write',  from, to, target }   bevestigd: schrijf de rij weg; target = tekst voor kolom C
+   *   { do: 'cancel',         sscc }
+   *   { do: 'ignore' }
+   *   { do: 'error',          message, detail }
+   */
+  function decideCombine(combine, parsed, cfg) {
+    var from = combine && combine.from ? String(combine.from) : '';
+    var to = combine && combine.to ? String(combine.to) : '';
+    if (!from) return decide(null, parsed);
+    if (!parsed || parsed.type === 'error') {
+      return { do: 'error', message: parsed ? parsed.message : 'Onbekende invoer', detail: parsed ? parsed.detail : '' };
+    }
+    if (parsed.type === 'sscc') {
+      if (parsed.sscc === from) return { do: 'error', message: 'Dat is dezelfde pallet', detail: 'Scan de pallet waarop de goederen van ' + tail(from) + ' nu liggen.' };
+      if (parsed.sscc === to) return { do: 'ignore' };
+      return { do: 'combine_target', from: from, to: parsed.sscc };
+    }
+    if (parsed.type === 'command' && parsed.command === 'ANNULEREN') return { do: 'cancel', sscc: from };
+    if (parsed.type === 'command' && parsed.command === 'COMBINEREN') {
+      if (!to) return { do: 'error', message: 'Scan eerst de doelpallet', detail: 'De pallet waarop de goederen van ' + tail(from) + ' nu liggen.' };
+      return { do: 'combine_write', from: from, to: to, target: combineTarget(to, cfg) };
+    }
+    return { do: 'error', message: 'Scan een pallet', detail: 'Combineren bezig: scan de pallet waarop alles nu ligt, of annuleer.' };
   }
 
   return {
@@ -167,6 +210,8 @@
     isValidSscc: isValidSscc,
     parseScan: parseScan,
     shortCode: shortCode,
-    decide: decide
+    combineTarget: combineTarget,
+    decide: decide,
+    decideCombine: decideCombine
   };
 });

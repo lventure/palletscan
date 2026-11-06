@@ -2,7 +2,7 @@
 
 Minimale scan-webapp voor het magazijn. Elke scan wordt één nieuwe rij in het tabblad **Scans** van de Google Sheet. Geen stockbeheer, geen login, geen dashboard.
 
-Scanflow: pallet-SSCC scannen, daarna de locatiebarcode scannen (of F1 = Klaar, F2 = Uitgenomen, F3 = TEE, F4 = Buffer, F8 = annuleren). De rij wordt eerst op het toestel bewaard en daarna verzonden. Lukt verzenden niet, dan blijft de app het opnieuw proberen.
+Scanflow: pallet-SSCC scannen, daarna de locatiebarcode scannen (of F1 = Klaar, F2 = Uitgenomen, F4 = Buffer, F5 = Combineer met een andere pallet, F8 = annuleren). De rij wordt eerst op het toestel bewaard en daarna verzonden. Lukt verzenden niet, dan blijft de app het opnieuw proberen.
 
 ## Bestanden
 
@@ -88,14 +88,14 @@ Neem bij voorkeur een Android-smartphone met Chrome: dat is dezelfde browser als
 3. Tik op **⌨** naast het invoerveld. De knop wordt geel. Tik op het invoerveld als het schermtoetsenbord niet vanzelf verschijnt.
 4. Typ `340123451234567895` en druk op Enter. Het scherm wordt geel en toont het nummer. Dit is Pallet A van `testbarcodes.html`.
 5. Typ `A03` en druk op Enter. Het scherm wordt groen. Controleer in de Sheet dat er een rij bij is met de juiste datum, SSCC en plaats.
-6. Typ `354123450000000014` en Enter, en tik op de knop **Klaar**. Doe hetzelfde met **Uitgenomen**, **TEE**, **Buffer** en **Annuleer**. Bij Annuleer mag er geen rij bijkomen.
+6. Typ `354123450000000014` en Enter, en tik op de knop **Klaar**. Doe hetzelfde met **Uitgenomen**, **Buffer** en **Annuleer**. Bij Annuleer mag er geen rij bijkomen.
 7. Typ `340123451234567890` en Enter. Het scherm wordt rood met "controlecijfer fout".
 8. Typ `A03` en Enter zonder open pallet. Het scherm wordt rood met "Eerst pallet scannen".
 9. Zet de smartphone in vliegtuigmodus en doe twee volledige scans. **WACHTRIJ 2** is oranje. Sluit Chrome volledig en open de app opnieuw: de wachtrij staat nog op 2. Zet vliegtuigmodus uit: binnen een halve minuut staat de wachtrij op 0 en staan beide rijen één keer in de Sheet.
 10. Zet de app op het startscherm (stap 5 hierboven) en start ze in vliegtuigmodus.
 11. Loop met de smartphone naar de plek in het magazijn met de zwakste wifi en doe daar een paar scans.
 
-Uit `TESTLIJST.md` kun je zo de stappen 1 tot 15, 17, 18 en 21 tot 26 aflopen. Gebruik de knoppen op het scherm waar de lijst F1 tot F4 of F8 zegt.
+Uit `TESTLIJST.md` kun je zo de stappen 1 tot 15, 17, 18 en 21 tot 26 aflopen. Gebruik de knoppen op het scherm waar de lijst F1 tot F5 of F8 zegt.
 
 Verwijder na de test de testrijen uit het tabblad Scans.
 
@@ -179,7 +179,6 @@ De vaste bestemmingen staan als één lijst in het configuratieblok bovenaan `in
 STATUSES: [
   { text: "Klaar",      keys: ["F1"], barcode: "CMDKLAAR" },
   { text: "Uitgenomen", keys: ["F2"], barcode: "CMDUIT" },
-  { text: "TEE",        keys: ["F3"], barcode: "CMDTEE" },
   { text: "Buffer",     keys: ["F4"], barcode: "CMDBUFFER" }
 ],
 ```
@@ -196,7 +195,7 @@ Komt een toets helemaal niet door in Chrome, of doet ze iets anders, dan zijn er
 
 1. Een andere toets kiezen die wel doorkomt en die in het configuratieblok zetten.
 2. De toets op het toestel zelf anders laten instellen: op de Keyence via de instelbare toetsen (vraag de Keyence-engineer), op een Zebra via **Instellingen > Key Programmer**.
-3. De commando-barcodes `CMDKLAAR`, `CMDUIT`, `CMDTEE`, `CMDBUFFER` en `CMDESC` afdrukken (ze staan op `testbarcodes.html`) en op de heftruck kleven. Die werken zoals F1 tot F4 en F8 en vragen geen toets.
+3. De commando-barcodes `CMDKLAAR`, `CMDUIT`, `CMDBUFFER`, `CMDCOMB` en `CMDESC` afdrukken (ze staan op `testbarcodes.html`) en op de heftruck kleven. Die werken zoals F1 tot F4 en F8 en vragen geen toets.
 
 De knoppen op het scherm werken altijd.
 
@@ -215,6 +214,52 @@ Test de leesafstand met een paar etiketten vóór je alle rekken labelt.
 
 Een locatie met de hand typen vraagt een letter. Op de Keyence BT-A600 kan dat rechtstreeks op het alfanumerieke toetsenbord. Typen is alleen de reserve voor een onleesbaar etiket.
 
+## Combineren: twee pallets samenvoegen
+
+Als twee half lege pallets samen op één pallet gelegd worden, registreert de magazijnier dat met **F5 Combineer**. Het systeem volgt het label dat op de volle pallet blijft; de pallet die leeg wordt, verdwijnt.
+
+1. Verhuis eerst de goederen. De scan beschrijft de werkelijkheid, niet het plan.
+2. Scan de pallet die **leeg** is. Het scherm wordt geel, zoals altijd.
+3. Druk **F5**. Het scherm wordt **blauw** met COMBINEER en vraagt: "Scan de pallet waarop alles NU ligt". De eerste scan is altijd wat verplaatst wordt, de tweede altijd waar het naartoe gaat, net als bij pallet → rekplaats.
+4. Scan de doelpallet. Het scherm toont "0404 → op 0862" en de knop wordt **Bevestig**. Verkeerde pallet gescand? Scan gewoon de juiste; de laatste scan telt.
+5. Druk opnieuw **F5** (of de knop Bevestig). Groen met **0404 ✔ op 0862**. In de Sheet komt één rij: kolom B de lege pallet, kolom C `Samengevoegd met 0862`, kolom G de volledige SSCC van de doelpallet.
+6. Verscheur het label van de lege pallet. Anders kan iemand die SSCC later opnieuw scannen.
+
+Die extra bevestiging is bewust, in afwijking van de rest van de app: een verkeerde combinatie is niet te herstellen met een nieuwe scan, een verkeerde rekplaats wel. **F8** annuleert in elke stap. Tijdens het combineren doen F1, F2 en F4 niets (rode melding), en een rekplaats scannen geeft "Scan een pallet". De commando-barcode `CMDCOMB` doet hetzelfde als F5, ook voor de bevestiging. Instellingen: `KEYS_COMBINEREN`, `BARCODE_COMBINEREN` en `COMBINE_TEXT` in het configuratieblok.
+
+Wat de app niet kan controleren: of beide pallets van dezelfde klant zijn, en of de doelpallet zelf al eerder samengevoegd is. Dat is een afspraak op de vloer (alleen dezelfde klant combineren) en een controle in de stock-Sheet.
+
+### Wat de stock-Sheet ermee doet
+
+Palletscan schrijft alleen de rij. De goederen zelf staan in de stock-Sheet, in **Stock invoer** (per pallet per product een rij met Pal NR), en **Stock nazicht_Nieuw** is daar een draaitabel over. Het plan, nog te bouwen in die Sheet:
+
+1. Een tabblad **Samenvoegingen** met per samenvoeging het bron- en het doelnummer, uit de scans. Met de scans in een tabblad `Scans` (kolom B = SSCC van de lege pallet, G = SSCC van de doelpallet, A = tijdstip), nieuwste eerst zodat een latere correctie wint:
+
+   ```
+   =QUERY({ARRAYFORMULA(VALUE(MID(Scans!B2:B;14;4)))\ ARRAYFORMULA(IFERROR(VALUE(MID(Scans!G2:G;14;4))))\ Scans!A2:A};
+          "select Col1, Col2 where Col2 is not null order by Col3 desc"; 0)
+   ```
+
+2. In **Stock invoer** een kolom **Pal NR effectief** naast Pal NR (hier in A2), die de ketting tot drie niveaus volgt (0404 → 0862 → 1229 ⇒ 1229):
+
+   ```
+   =LET(p; A2;
+        s1; IFERROR(VLOOKUP(p;  Samenvoegingen!$A:$B; 2; FALSE); p);
+        s2; IFERROR(VLOOKUP(s1; Samenvoegingen!$A:$B; 2; FALSE); s1);
+        IFERROR(VLOOKUP(s2; Samenvoegingen!$A:$B; 2; FALSE); s2))
+   ```
+
+   Controlecel die waarschuwt als een ketting dieper gaat dan drie, met de kolom Pal NR effectief in `Stock invoer!X:X`:
+
+   ```
+   =IF(SUMPRODUCT(COUNTIF(Samenvoegingen!A:A; 'Stock invoer'!X2:X)) > 0; "KETTING TE DIEP: controleer Samenvoegingen"; "ok")
+   ```
+
+3. De draaitabel groepeert op **Pal NR effectief** in plaats van op Pal NR. De rijen van de lege pallet verschijnen dan onder de doelpallet, met haar locatie; de lege pallet verdwijnt uit het nazicht en uit de Stockzoeker. De rijen in Stock invoer blijven onaangeroerd (lot en hoeveelheid per oorspronkelijke pallet blijven herleidbaar).
+4. Let op: de **status** van de pallet (Nieuw, Uitgenomen, Klaar) moet opgezocht worden op het effectieve nummer, niet op het oorspronkelijke. Anders krijgen de rijen van 0404 de status "Samengevoegd" terwijl ze onder 0862 staan.
+
+De korte codes zijn niet uniek over de jaren heen (vier cijfers). Samenvoegingen werkt daarom alleen juist zolang er geen oude pallet met hetzelfde nummer nog in Stock invoer staat. Is dat ooit een probleem, dan kan de koppeling op de volledige SSCC in kolom G.
+
 ## Korte palletcode op het scherm
 
 Na het scannen van een pallet toont de app niet de volledige SSCC groot, maar de **korte palletcode**: de vier laatste cijfers vóór het controlecijfer (positie 14 tot 17). Van `154199802502004042` is dat `0404`. De volledige SSCC staat er in het klein onder, met die vier cijfers vet en onderstreept. Na het wegschrijven staat dezelfde korte code groot in het groen, met daaronder de plaats en een vinkje. In de lijst van laatste scans staat de korte code ook (op een breed scherm de volledige SSCC). In de Sheet komt altijd de volledige SSCC.
@@ -227,10 +272,11 @@ Welke cijfers de korte code vormen, staat in het configuratieblok: `SHORT_CODE_F
 |---|---|
 | A | Datum en uur van de scan op het toestel, als echte datum-tijdwaarde in Belgische tijd |
 | B | Pallet-SSCC, 18 cijfers, als tekst |
-| C | Palletplaats (bijvoorbeeld `A03`), of een vaste bestemming: `Klaar`, `Uitgenomen`, `TEE` of `Buffer`, als tekst |
+| C | Palletplaats (bijvoorbeeld `A03`), een vaste bestemming (`Klaar`, `Uitgenomen`, `Buffer`) of `Samengevoegd met 0862` bij combineren, als tekst |
 | D | ScanID, alleen om dubbele rijen te vermijden |
 | E | Toestelnaam |
 | F | Tijdstip waarop Google de rij ontving |
+| G | Bij combineren: de volledige SSCC van de doelpallet, als tekst. Anders leeg. |
 
 Een groot verschil tussen A en F betekent dat de scan lang in de wachtrij zat, of dat de klok van het toestel fout staat. Kolom E zegt welk toestel het was.
 
@@ -260,7 +306,7 @@ Afspraken voor het tabblad Scans:
 15. **Commando-barcodes** zijn toegevoegd als reserve voor de functietoetsen. Ze stonden niet in de spec.
 16. **Toegelaten tekens in kolom C**: het script aanvaardt alleen letters, cijfers, spatie, punt, streepjes en schuine streep, en het eerste teken moet een letter of cijfer zijn. Zo kan er nooit een formule in de Sheet komen. Kies je later een locatieformaat met andere tekens, pas dan `LOC_ALLOWED` in `Code.gs` mee aan. Anders worden die scans geweigerd.
 17. **Een tweede druk op een sneltoets** binnen 1,5 seconde na het wegschrijven wordt genegeerd, net als een dubbele lezing van een rek-etiket.
-18. **Vaste bestemmingen** (`Klaar`, `Uitgenomen`, `TEE`, `Buffer`) werken allemaal op dezelfde manier: pallet scannen, sneltoets drukken, en kolom C krijgt de naam. De naam zelf scannen of typen werkt ook: `TEE` + Enter, of een barcode met `TEE` erin.
+18. **Vaste bestemmingen** (`Klaar`, `Uitgenomen`, `Buffer`) werken allemaal op dezelfde manier: pallet scannen, sneltoets drukken, en kolom C krijgt de naam. De naam zelf scannen of typen werkt ook: `Buffer` + Enter, of een barcode met `BUFFER` erin.
 
 ## Betrouwbaarheid: wat de app wel en niet opvangt
 
@@ -296,6 +342,20 @@ Het getal naast **WACHTRIJ** bovenaan is het aantal scans dat nog niet in de She
 Het toestel haalt bij elke start met wifi alle bestanden van de app samen op en vervangt de oude alleen als ze allemaal binnen zijn. Een toestel draait dus nooit een half bijgewerkte app.
 
 ## Wijzigingen
+
+### Versie 1.8.0
+
+- De bestemming **TEE** (F3, `CMDTEE`) vervalt; `CMDTEE` en `TEE` worden geweigerd als onbekende barcode. Rijen die al met TEE in de Sheet staan, blijven zo. De toetsen van de andere knoppen blijven dezelfde (F1 Klaar, F2 Uitgenomen, F4 Buffer, F5 Combineer, F8 Annuleer), zodat niemand moet herleren; wil je ze aaneensluitend (F3 Buffer, F4 Combineer), pas dan alleen `keys` in het configuratieblok aan.
+- De knoppen zijn groter: vijf knoppen, drie op de eerste rij en twee op de tweede (Annuleer dubbel breed).
+- De lijst van laatste scans onderaan is kleiner (twee regels zichtbaar) en scrolt; ze toont nu de laatste tien scans in plaats van vijf.
+- `testbarcodes.html` zonder de kaart TEE; opnieuw afdrukken als je de commando-barcodes gebruikt. `Code.gs` is niet gewijzigd sinds 1.7.0.
+
+### Versie 1.7.0
+
+- Nieuw: **Combineren** (F5, commando-barcode `CMDCOMB`): scan de lege pallet, F5, scan de pallet waarop alles nu ligt, F5 om te bevestigen. Kolom C wordt `Samengevoegd met <korte code>`, nieuwe kolom G krijgt de volledige SSCC van de doelpallet. Zie "Combineren".
+- `Code.gs` is gewijzigd (kolom G, controle van de doel-SSCC): plak de nieuwe versie in de Apps Script-editor met je eigen `SHARED_KEY`, voer `eersteKeerInstellen` uit (vult het kopje van kolom G aan) en kies **Implementeren > Implementaties beheren > Nieuwe versie**. Een oude app met het nieuwe script werkt gewoon; een nieuwe app met het oude script krijgt zijn samenvoegingen geweigerd (ze blijven op het toestel staan tot het script bijgewerkt is).
+- De knoppen staan met zes op het scherm: F1 tot F3 op de eerste rij, F4, F5 en F8 op de tweede.
+- `testbarcodes.html` heeft een kaart `CMDCOMB` erbij; opnieuw afdrukken als je de commando-barcodes gebruikt.
 
 ### Versie 1.6.0
 
@@ -375,15 +435,15 @@ Rijen die al met het oude formaat (`3.12`) geschreven zijn, blijven staan zoals 
 Met Node.js:
 
 ```
-node tests/run.js              # SSCC, locatie en flowregels (54 tests)
-node tests/run-appsscript.js   # Code.gs tegen een nagebootste Sheet (13 tests)
+node tests/run.js              # SSCC, locatie, flowregels en combineren (67 tests)
+node tests/run-appsscript.js   # Code.gs tegen een nagebootste Sheet (16 tests)
 ```
 
-Zonder Node.js: upload de map `tests` mee en open `https://<gebruikersnaam>.github.io/palletscan/tests/`. Die pagina draait de 54 tests van `run.js` in de browser.
+Zonder Node.js: upload de map `tests` mee en open `https://<gebruikersnaam>.github.io/palletscan/tests/`. Die pagina draait de tests van `run.js` in de browser.
 
 ## Wat getest is en wat niet
 
-Getest in een geautomatiseerde browser (Chromium, schermgrootte van de MC3400): de volledige scanflow, alle foutgevallen, F1 tot F4 en F8, de knoppen op het scherm, de wachtrij bij uitval, herladen, een verloren antwoord, een fout adres, een verkeerde sleutel, een geweigerde scan, starten zonder netwerk, een update van de app, en twee toestellen die tegelijk schrijven. Het script `Code.gs` is daarbij getest tegen een nagebootste Sheet.
+Getest in een geautomatiseerde browser (Chromium, schermgrootte van de MC3400): de volledige scanflow, alle foutgevallen, F1, F2, F4, F5 en F8, het combineren (alle stappen, fouten, annuleren, commando-barcode, geweigerde doel-SSCC), de knoppen op het scherm, de wachtrij bij uitval, herladen, een verloren antwoord, een fout adres, een verkeerde sleutel, een geweigerde scan, starten zonder netwerk, een update van de app, en twee toestellen die tegelijk schrijven. Het script `Code.gs` is daarbij getest tegen een nagebootste Sheet.
 
 Twee belastingstests, omdat "een scan mag nooit verloren gaan" de harde eis is:
 

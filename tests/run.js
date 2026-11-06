@@ -1,15 +1,13 @@
-#!/usr/bin/env node
-/* Tests draaien met Node:  node tests/run.js  */
+/* Draait de tests van cases.js in Node: node tests/run.js */
 'use strict';
-const path = require('path');
-const L = require(path.join(__dirname, '..', 'scanlogic.js'));
-const runScanLogicTests = require(path.join(__dirname, 'cases.js'));
-
-const results = runScanLogicTests(L);
-let failed = 0;
-for (const r of results) {
-  if (r.ok) console.log('  ok    ' + r.name);
-  else { failed++; console.log('  FOUT  ' + r.name + '\n        ' + r.detail); }
-}
-console.log('\n' + (results.length - failed) + ' van ' + results.length + ' tests geslaagd.');
-process.exit(failed ? 1 : 0);
+var path = require('path');
+var L = require(path.join(__dirname, '..', 'scanlogic.js'));
+var run = require(path.join(__dirname, 'cases.js'));
+var results = run(L);
+var ok = 0;
+results.forEach(function (r) {
+  if (r.ok) { ok++; console.log('  ok    ' + r.name); }
+  else { console.log('  FOUT  ' + r.name + '\n        ' + r.detail); }
+});
+console.log('\n' + ok + ' van ' + results.length + ' tests geslaagd.');
+process.exit(ok === results.length ? 0 : 1);
