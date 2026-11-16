@@ -95,10 +95,17 @@
 
     var pattern = new RegExp(c.locationPattern);
 
-    // 2. SSCC: "(00)" + 18 cijfers, "00" + 18 cijfers, of 18 cijfers
+    // 2. SSCC: "(00)" + 18 cijfers, "00" + 18 cijfers, of 18 cijfers.
+    //    Ook een GS1-barcode die met de SSCC begint en daarna nog andere
+    //    gegevens bevat, bv. (00)SSCC(15)jjmmdd met de THT: alleen de SSCC
+    //    telt, de rest wordt genegeerd. De scanner stuurt zo'n barcode meestal
+    //    zonder haakjes door ("00" + 18 cijfers + "15" + 6 cijfers).
+    var gs1 = /^00([0-9]{18})[0-9]{2}./.exec(s) || /^\(00\)([0-9]{18})\([0-9]{2,4}\)./.exec(s);
     var paren = /^\(00\)([0-9]*)$/.exec(s);
     var digits = null;
-    if (paren) {
+    if (gs1) {
+      digits = gs1[1];
+    } else if (paren) {
       digits = paren[1];
       if (digits.length !== 18) return err('sscc_length', 'SSCC moet 18 cijfers zijn', 'Gelezen: ' + digits.length + ' cijfers');
     } else if (/^[0-9]+$/.test(s)) {
